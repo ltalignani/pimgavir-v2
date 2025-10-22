@@ -91,7 +91,7 @@ fi
 echo "Done"
 
 # Run analysis
-cd pimgavir/scripts/
+cd pimgavir_dev/scripts/
 
 echo "what's in working (script) directory?"
 ls
@@ -104,7 +104,7 @@ rm -rf *_rrna_stats.txt
 ######################################### SLURM CONFIGURATION - END ##################################
 
 ##Versioning
-version="PIMGAVir V.1.1 -- 20.04.2022"
+version="PIMGAVir V.2.0 -- 22.10.2025"
 
 ##Pre-processing parameters
 R1=$1 				#R1.fastq.gz
@@ -150,12 +150,12 @@ fi
 if (( $# < $NumOfArgs ))
 then
     printf "%b" "Error. Not enough arguments.\n" >&2
-    printf "%b" "Usage pimgavir.sh R1.fastq.gz R2.fastq.gz SampleName NumbOfCores ALL|[--read_based --ass_based --clust_based] [--filter] \n" >&2
+    printf "%b" "Usage PIMGAVIR.sh R1.fastq.gz R2.fastq.gz SampleName NumbOfCores ALL|[--read_based --ass_based --clust_based] [--filter] \n" >&2
     exit 1
 elif (( $# > $NumOfArgs+4 ))
 then
     printf "%b" "Error. Too many arguments.\n" >&2
-    printf "%b" "Usage pimgavir.sh R1.fastq.gz R2.fastq.gz SampleName NumbOfCores ALL|[--read_based --ass_based --clust_based] [--filter] \n" >&2
+    printf "%b" "Usage PIMGAVIR.sh R1.fastq.gz R2.fastq.gz SampleName NumbOfCores ALL|[--read_based --ass_based --clust_based] [--filter] \n" >&2
     exit 2
 else
     if [ -n "$JTrim" ] && [ "$JTrim" -eq "$JTrim" ] 2>/dev/null; then
