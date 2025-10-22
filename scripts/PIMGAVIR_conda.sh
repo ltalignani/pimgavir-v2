@@ -33,7 +33,7 @@ PATH_TO_SAVE="/projects/large/PIMGAVIR/"${SLURM_JOB_ID}"_"${NAME%_*}"_"${METHOD#
 
 echo "Copy data to the scratch directory"
 # Copy to the scratch directory
-scp -r /projects/large/PIMGAVIR/pimgavir/ ${SCRATCH_DIRECTORY}
+scp -r /projects/large/PIMGAVIR/pimgavir_dev/ ${SCRATCH_DIRECTORY}
 
 echo "Done"
 
@@ -86,7 +86,7 @@ which kraken2 kaiju ktImportTaxonomy megahit blastn bbduk.sh
 echo "Done"
 
 # Run analysis
-cd pimgavir/scripts/
+cd pimgavir_dev/scripts/
 
 echo "what's in working (script) directory?"
 ls
@@ -98,7 +98,7 @@ rm -rf *_rrna_stats.txt
 ######################################### ENVIRONMENT SETUP - END ##################################
 
 ##Versioning
-version="PIMGAVir V.1.2 -- 29.09.2024 (Conda Version)"
+version="PIMGAVir V.2.0 -- 22.10.2025 (Conda Version)"
 
 ##Pre-processing parameters
 R1=$1 				#R1.fastq.gz
@@ -144,12 +144,12 @@ fi
 if (( $# < $NumOfArgs ))
 then
     printf "%b" "Error. Not enough arguments.\n" >&2
-    printf "%b" "Usage PIMGAVIR.sh R1.fastq.gz R2.fastq.gz SampleName NumbOfCores ALL|[--read_based --ass_based --clust_based] [--filter] \n" >&2
+    printf "%b" "Usage PIMGAVIR_conda.sh R1.fastq.gz R2.fastq.gz SampleName NumbOfCores ALL|[--read_based --ass_based --clust_based] [--filter] \n" >&2
     exit 1
 elif (( $# > $NumOfArgs+4 ))
 then
     printf "%b" "Error. Too many arguments.\n" >&2
-    printf "%b" "Usage PIMGAVIR.sh R1.fastq.gz R2.fastq.gz SampleName NumbOfCores ALL|[--read_based --ass_based --clust_based] [--filter] \n" >&2
+    printf "%b" "Usage PIMGAVIR_conda.sh R1.fastq.gz R2.fastq.gz SampleName NumbOfCores ALL|[--read_based --ass_based --clust_based] [--filter] \n" >&2
     exit 2
 else
     if [ -n "$JTrim" ] && [ "$JTrim" -eq "$JTrim" ] 2>/dev/null; then

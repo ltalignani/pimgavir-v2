@@ -48,13 +48,15 @@ conda activate pimgavir_minimal
 ### 4. Run the pipeline
 
 **Option A: Hybrid approach (system modules + conda)**
+
 ```bash
-sbatch PIMGAVIR.sh R1.fastq.gz R2.fastq.gz SampleName 40 ALL [--filter]
+sbatch PIMGAVIR.sh R1.fastq.gz R2.fastq.gz SampleName 40 [--read_based | --ass_based | --clust_based | ALL] [--filter]
 ```
 
 **Option B: Pure conda approach (recommended)**
+
 ```bash
-sbatch PIMGAVIR_conda.sh R1.fastq.gz R2.fastq.gz SampleName 40 ALL [--filter]
+sbatch PIMGAVIR_conda.sh R1.fastq.gz R2.fastq.gz SampleName 40 [--read_based | --ass_based | --clust_based | ALL] [--filter]
 ```
 
 ## Installation Options
@@ -80,6 +82,7 @@ mamba env create -f scripts/pimgavir_complete.yaml
 ## Usage Examples
 
 ### Using PIMGAVIR.sh (Hybrid: system modules + conda)
+
 ```bash
 # Full pipeline with all methods
 sbatch PIMGAVIR.sh sample_R1.fastq.gz sample_R2.fastq.gz sample01 40 ALL
@@ -92,6 +95,7 @@ sbatch PIMGAVIR.sh sample_R1.fastq.gz sample_R2.fastq.gz sample01 40 ALL --filte
 ```
 
 ### Using PIMGAVIR_conda.sh (Pure conda - recommended)
+
 ```bash
 # Full pipeline with all methods (pure conda)
 sbatch PIMGAVIR_conda.sh sample_R1.fastq.gz sample_R2.fastq.gz sample01 40 ALL
