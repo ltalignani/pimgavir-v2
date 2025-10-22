@@ -42,7 +42,7 @@ echo "Setting up conda environment"
 module purge
 
 # Activate conda environment - all tools are included in conda
-echo "Activating conda environment: pimgavir_complete"
+echo "Activating conda environment..."
 
 # Initialize conda for this shell session
 if [ -f "${HOME}/miniconda3/etc/profile.d/conda.sh" ]; then
@@ -57,15 +57,25 @@ else
     exit 1
 fi
 
-# Activate the complete PIMGAVir environment
-conda activate pimgavir_complete
+# Try to activate conda environment (complete first, then minimal)
+if conda env list | grep -q "pimgavir_complete"; then
+    conda activate pimgavir_complete
+    echo "Activated pimgavir_complete environment"
+elif conda env list | grep -q "pimgavir_minimal"; then
+    conda activate pimgavir_minimal
+    echo "Activated pimgavir_minimal environment"
+else
+    echo "Error: No PIMGAVir conda environment found"
+    echo "Please create one of the following environments:"
+    echo "  mamba env create -f scripts/pimgavir_complete.yaml  (recommended)"
+    echo "  mamba env create -f scripts/pimgavir_minimal.yaml   (minimal)"
+    echo "OR run: ./scripts/setup_conda_env_fast.sh"
+    exit 1
+fi
 
 # Verify conda environment activation
 if [ $? -ne 0 ]; then
-    echo "Error: Failed to activate pimgavir_complete environment"
-    echo "Please ensure the environment exists:"
-    echo "conda env create -f scripts/pimgavir_complete.yaml"
-    echo "OR run: ./scripts/setup_conda_env.sh"
+    echo "Error: Failed to activate conda environment"
     exit 1
 fi
 

@@ -41,25 +41,7 @@ echo "Load modules"
 # purge and load the programs
 module purge
 
-#module load FastQC/0.11.9
-#module load cutadapt/3.1
-#module load TrimGalore/0.6.5
-#module load bbmap/38.87
-#module load kronatools/2.8.1
-#module load taxonkit/0.9.0
-#module load seqtk/1.3-r106
-#module load MEGAHIT/1.2.9
-#module load quast/5.0.2
-#module load SPAdes/3.15.3
-#module load bowtie2/2.3.4.1
-#module load samtools/1.10
-#module load pilon/1.23
-#module load prokka/1.14.6
-#module load kraken2/2.1.1
-#module load kaiju/1.8.0
-#module load blast/2.12.0+ # blast/2.8.1+ already loaded by system
 module load seqkit/2.1.0
-#module load vsearch/2.21.1
 module load python/3.8.12
 
 echo "Done"
@@ -85,10 +67,13 @@ fi
 
 # Try to activate conda environment if conda is available
 if command -v conda &> /dev/null; then
-    # Try pimgavir_complete first (recommended), then fallback to legacy environments
+    # Try pimgavir_complete first (recommended), then minimal, then fallback to legacy environments
     if conda env list | grep -q "pimgavir_complete"; then
         conda activate pimgavir_complete
         echo "Activated pimgavir_complete environment"
+    elif conda env list | grep -q "pimgavir_minimal"; then
+        conda activate pimgavir_minimal
+        echo "Activated pimgavir_minimal environment"
     elif conda env list | grep -q "pimgavir_env"; then
         conda activate pimgavir_env
         echo "Activated pimgavir_env environment"
@@ -97,7 +82,7 @@ if command -v conda &> /dev/null; then
         echo "Activated pimgavir environment"
     else
         echo "Warning: No PIMGAVir conda environment found. Using system tools."
-        echo "Consider running: ./setup_conda_env.sh"
+        echo "Consider running: ./setup_conda_env_fast.sh"
     fi
 else
     echo "Using system modules (conda not available)"

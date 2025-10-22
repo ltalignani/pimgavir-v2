@@ -25,37 +25,50 @@ PIMGAVir identifies viruses from environmental samples using three complementary
 ## Quick Start
 
 ### 1. Clone the repository
+
 ```bash
 git clone https://github.com/ltalignani/PIMGAVIR-v2.git
 cd PIMGAVIR-v2
 ```
 
 ### 2. Setup conda environment
+
 ```bash
 cd scripts/
 ./setup_conda_env_fast.sh
 ```
 
 ### 3. Activate environment
+
 ```bash
 conda activate pimgavir_minimal
 # or: conda activate pimgavir_complete
 ```
 
 ### 4. Run the pipeline
+
+**Option A: Hybrid approach (system modules + conda)**
 ```bash
 sbatch PIMGAVIR.sh R1.fastq.gz R2.fastq.gz SampleName 40 ALL [--filter]
+```
+
+**Option B: Pure conda approach (recommended)**
+```bash
+sbatch PIMGAVIR_conda.sh R1.fastq.gz R2.fastq.gz SampleName 40 ALL [--filter]
 ```
 
 ## Installation Options
 
 ### Recommended: Fast Setup
+
 Uses mamba for rapid installation:
+
 ```bash
 ./scripts/setup_conda_env_fast.sh
 ```
 
 ### Manual Setup
+
 ```bash
 # Minimal environment (essential tools only)
 mamba env create -f scripts/pimgavir_minimal.yaml
@@ -66,6 +79,7 @@ mamba env create -f scripts/pimgavir_complete.yaml
 
 ## Usage Examples
 
+### Using PIMGAVIR.sh (Hybrid: system modules + conda)
 ```bash
 # Full pipeline with all methods
 sbatch PIMGAVIR.sh sample_R1.fastq.gz sample_R2.fastq.gz sample01 40 ALL
@@ -77,10 +91,27 @@ sbatch PIMGAVIR.sh sample_R1.fastq.gz sample_R2.fastq.gz sample01 40 --read_base
 sbatch PIMGAVIR.sh sample_R1.fastq.gz sample_R2.fastq.gz sample01 40 ALL --filter
 ```
 
+### Using PIMGAVIR_conda.sh (Pure conda - recommended)
+```bash
+# Full pipeline with all methods (pure conda)
+sbatch PIMGAVIR_conda.sh sample_R1.fastq.gz sample_R2.fastq.gz sample01 40 ALL
+
+# Single method execution (pure conda)
+sbatch PIMGAVIR_conda.sh sample_R1.fastq.gz sample_R2.fastq.gz sample01 40 --read_based
+
+# With host filtering (pure conda)
+sbatch PIMGAVIR_conda.sh sample_R1.fastq.gz sample_R2.fastq.gz sample01 40 ALL --filter
+```
+
 ## Pipeline Architecture
 
+### Main Scripts
+
+- **`PIMGAVIR.sh`**: Hybrid approach using system modules + conda environments
+- **`PIMGAVIR_conda.sh`**: Pure conda approach (recommended for better reproducibility)
+
 ### Core Modules
-- `PIMGAVIR.sh`: Main SLURM job script and pipeline orchestrator
+
 - `pre-process.sh`: Quality trimming and rRNA removal
 - `reads-filtering.sh`: Host/unwanted sequence removal
 - `assembly.sh`: Genome assembly using MEGAHIT and SPAdes
@@ -89,7 +120,9 @@ sbatch PIMGAVIR.sh sample_R1.fastq.gz sample_R2.fastq.gz sample01 40 ALL --filte
 - `krona-blast.sh`: Visualization and BLAST annotation
 
 ### Dependencies
+
 All tools are available in conda environments:
+
 - **Quality control**: fastqc, cutadapt, trim-galore
 - **rRNA removal**: bbmap (BBDuk)
 - **Taxonomic classification**: kraken2, kaiju, krona
@@ -125,7 +158,7 @@ results/
 
 If you use PIMGAVir in your research, please cite:
 
-```
+```text
 [Citation to be added]
 ```
 
