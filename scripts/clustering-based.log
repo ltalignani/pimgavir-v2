@@ -1,0 +1,4 @@
+Fri Jun  9 17:02:38 CEST 2023 Executing seqkit split2 with the following arguments: merged fastq file is sample9_not_rRNA.fq.gz
+Fri Jun  9 17:02:38 CEST 2023 Split single fastq file into 2 (seqkit split2)
+Fri Jun  9 17:02:42 CEST 2023 Executing seqkit fq2fa with the following arguments: merged fastq file is sample9_not_rRNA.fq.gz
+Fri Jun  9 17:02:45 CEST 2023 Executing concatenate_reads.py

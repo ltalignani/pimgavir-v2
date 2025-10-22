@@ -1,0 +1,37 @@
+name: pimgavir_minimal
+channels:
+  - bioconda
+  - conda-forge
+  - defaults
+dependencies:
+  # Base environment
+  - python=3.9
+  - pip
+
+  # Essential tools only
+  - fastqc
+  - cutadapt
+  - trim-galore
+  - bbmap
+  - kraken2
+  - kaiju
+  - krona
+  - megahit
+  - spades
+  - blast
+  - diamond
+  - vsearch
+  - seqkit
+  - parallel
+  - rsync
+  - wget
+  - pigz
+
+  # Python packages
+  - biopython
+  - numpy
+  - pandas
+
+  # Required libraries
+  - perl
+  - openjdk

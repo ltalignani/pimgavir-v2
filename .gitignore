@@ -1,0 +1,14 @@
+CLAUDE.md
+.claude
+.DS_Store
+DBs/Diamond-RefSeqProt/refseq_protein_redund_diamond.dmnd
+DBs/Kaiju/bin
+DBs/KrakenViral/library/
+DBs/KrakenViral/taxonomy/
+DBs/KrakenViral/hash.k2d
+DBs/KrakenViral/taxo.k2d
+DBs/KrakenViral/seqid2taxid.map
+DBs/KrakenViral/opts.k2d
+Deprecated/
+scripts/sortmeRNA_wd/
+scripts/taxonomy.tab
