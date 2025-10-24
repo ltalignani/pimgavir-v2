@@ -28,8 +28,8 @@ cd ${SCRATCH_DIRECTORY}/
 # Save directory
 NAME=$1
 METHOD=$5
-mkdir -p "/projects/large/PIMGAVIR/"${SLURM_JOB_ID}"_"${NAME%_*}"_"${METHOD#--}
-PATH_TO_SAVE="/projects/large/PIMGAVIR/"${SLURM_JOB_ID}"_"${NAME%_*}"_"${METHOD#--}
+mkdir -p "/projects/large/PIMGAVIR/results/"${SLURM_JOB_ID}"_"${NAME%_*}"_"${METHOD#--}
+PATH_TO_SAVE="/projects/large/PIMGAVIR/results/"${SLURM_JOB_ID}"_"${NAME%_*}"_"${METHOD#--}
 
 echo "Copy data to the scratch directory"
 # Copy to the scratch directory

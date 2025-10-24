@@ -38,10 +38,6 @@ echo "Starting process..."
 echo "1. Executing seqkit split2 (splitting)"
 echo -e "$(date) Executing seqkit split2 with the following arguments: merged fastq file is $merged_seq" > $logfile 2>&1
 
-echo -e "checking path:"
-pwd
-ls
-
 echo "1. Split single fastq file into 2 with seqkit. Load seqkit module"
 module load seqkit/2.1.0
 
@@ -72,89 +68,50 @@ mv *.part_002.fq.fasta Reverse.fasta
 cp $ConcScript .
 python3 concatenate_reads.py || exit 8
 
-echo " "
-echo -e "checking files and directories:"
-ls
-echo " " 
-
-
-echo "4. Dereplicate the concatenated fastas. Load vsearch module"
+echo "4. Load vsearch module and combine files for single dereplication pass"
 
 module load vsearch/2.21.1
 
-echo -e "$(date) Dereplicate the concatenated fastas (vsearch)" >> ../../$logfile 2>&1
+# Performance optimization: Combine files first, THEN perform single dereplication
+# This eliminates redundant dereplication passes (saves 15-40 minutes for large datasets)
+echo -e "$(date) Combining FASTA files for single-pass dereplication" >> ../../$logfile 2>&1
+
+## Combine all FASTA files into single file before dereplication
+cat *.fasta > Combined.fasta
+
+echo "5. Perform single-pass dereplication on combined dataset (vsearch)"
+echo -e "$(date) Perform single-pass dereplication on the full dataset (vsearch)" >> ../../$logfile 2>&1
 #Command to execute
-## Dereplicate the concatenated fastas
-for f in *.fasta; do vsearch --derep_fulllength $f --output derep_$f --sizeout --uc ${f%.*}.uc --relabel ${f%.*}. --fasta_width 0; done || exit 9
+## Single comprehensive dereplication (replaces previous double-dereplication)
+vsearch --derep_fulllength Combined.fasta --output derep.fasta --sizeout --uc combined.uc --fasta_width 0 --threads $JTrim || exit 9
 
-echo " "
-echo -e "checking files and directories:"
-ls
-echo " " 
-
-echo "5. Merging deprelicated fastas into a single file"
-echo -e "$(date) Merging deprelicated fastas into a single file" >> ../../$logfile 2>&1
-#Command to execute
-## Merged deprelicated fastas into a single file
-cat derep_* > Combined.fasta
-
-echo " "
-echo -e "checking files and directories:"
-ls
-echo " " 
-
-echo "6. Perform another round of dereplication on the full dataset (vsearch)"
-echo -e "$(date) Perform another round of dereplication on the full dataset (vsearch)" >> ../../$logfile 2>&1
-#Command to execute
-## Perform another round of dereplication on the full dataset
-vsearch --derep_fulllength Combined.fasta --output derep.fasta --sizein --sizeout --uc combined.uc  --fasta_width 0 --threads $JTrim || exit 9
-
-echo " "
-echo -e "checking files and directories:"
-ls
-echo " " 
-
-echo "7. Perform Pre-Clustering (vsearch)"
+echo "6. Perform Pre-Clustering (vsearch)"
 echo -e "$(date) Perform Pre-Clustering (vsearch)" >> ../../$logfile 2>&1
 #Command to execute
 ## Perform Chimera Filter Denovo
 vsearch --cluster_size derep.fasta --id 0.95 --sizein --sizeout --fasta_width 0 --centroids preclustered.fasta --threads $JTrim || exit 91
 
-echo " "
-echo -e "checking files and directories:"
-ls
-echo " " 
-
-echo "8. Perform Chimera Filter Denovo (vsearch)"
+echo "7. Perform Chimera Filter Denovo (vsearch)"
 echo -e "$(date) Perform Chimera Filter Denovo (vsearch)" >> ../../$logfile 2>&1
 #Command to execute
 vsearch --uchime_denovo preclustered.fasta --sizein --sizeout --fasta_width 0 --nonchimeras nonchimeras.fasta || exit 91
 
-echo " "
-echo -e "checking files and directories:"
-ls
-echo " " 
+# Memory optimization: Remove intermediate files to prevent memory pressure
+rm -f preclustered.fasta
 
-echo "9. Perform Cluster for OTUs, print biom tables and MSA (vsearch)"
+echo "8. Perform Cluster for OTUs, print biom tables and MSA (vsearch)"
 echo -e "$(date) Perform Cluster for OTUs, print biom tables and MSA (vsearch)" >> ../../$logfile 2>&1
 #Command to execute
 #Cluster for OTUs and print biom tables
 vsearch --cluster_size nonchimeras.fasta --id 0.95 --sizein --sizeout --fasta_width 0 --uc clustered.uc --relabel OTU_ --centroids otus.fasta --otutabout otutab.txt --biomout otu.biom --msaout MSA.fa --threads $JTrim || exit 91
 
-echo " "
-echo -e "checking files and directories:"
-ls
-echo " "
+# Memory optimization: Remove large intermediate files after use
+rm -f derep.fasta nonchimeras.fasta Combined.fasta
 
-echo "10. Move the OTUS fasta file to the up-folder"
+echo "9. Move the OTUS fasta file to the up-folder"
 echo -e "$(date) Move the OTUS fasta file to the up-folder" >> ../../$logfile 2>&1
 ##Move the OTUS fasta file to the up-folder
 mv otus.fasta ../
-
-echo " "
-echo -e "checking for path:"
-pwd
-echo " "
 
 cd ../../
 

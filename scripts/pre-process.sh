@@ -30,10 +30,9 @@ echo -e "$(date) Removing adapters using Trim Galore using 8 cores\n" >> $logfil
 trim_galore -j 8 --length 80 --paired $R1 $R2 -q 30 --fastqc > $Trimgalore 2>&1
 echo -e "$(date) Trim Galore session finished \n" >> $logfile 2>&1
 
-scp -r *val_*fq.gz "/projects/large/PIMGAVIR/"${SLURM_JOB_ID}"_"${SampleName}"_"${METHOD#--}
-scp -r *_trimming_report.txt  "/projects/large/PIMGAVIR/"${SLURM_JOB_ID}"_"${SampleName}"_"${METHOD#--}
-scp -r *.html "/projects/large/PIMGAVIR/"${SLURM_JOB_ID}"_"${SampleName}"_"${METHOD#--}
-scp -r *.zip "/projects/large/PIMGAVIR/"${SLURM_JOB_ID}"_"${SampleName}"_"${METHOD#--}
+# Consolidate SCP transfers into single command to reduce SSH handshake overhead
+DEST="/projects/large/PIMGAVIR/${SLURM_JOB_ID}_${SampleName}_${METHOD#--}"
+scp -r *val_*fq.gz *_trimming_report.txt *.html *.zip "$DEST"
 
 
 ##Rename files
@@ -41,14 +40,16 @@ echo -e "$(date) Remaming files \n" >> $logfile 2>&1
 trimmedR1=$SampleName"_R1_trimmed.fq.gz"
 trimmedR2=$SampleName"_R2_trimmed.fq.gz"
 
-#Command to execute:
-if [[ "$R1" == "*.fq.gz" ]]; then 
-	mv `basename $R1 .fq.gz`_val_1.fq.gz $trimmedR1
-	mv `basename $R2 .fq.gz`_val_2.fq.gz $trimmedR2
+#Command to execute (using shell parameter expansion instead of basename for efficiency):
+if [[ "$R1" == *".fq.gz" ]]; then
+	base1="${R1%.fq.gz}"
+	base2="${R2%.fq.gz}"
 else
-	mv `basename $R1 .fastq.gz`_val_1.fq.gz $trimmedR1
-	mv `basename $R2 .fastq.gz`_val_2.fq.gz $trimmedR2
+	base1="${R1%.fastq.gz}"
+	base2="${R2%.fastq.gz}"
 fi
+mv "${base1##*/}_val_1.fq.gz" "$trimmedR1"
+mv "${base2##*/}_val_2.fq.gz" "$trimmedR2"
 
 module unload TrimGalore/0.6.5
 module unload cutadapt/3.1

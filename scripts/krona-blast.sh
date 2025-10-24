@@ -18,7 +18,19 @@ krona_tax_list=$KBDir"/"$SampleName"_krona_tax.lst"
 krona_out=$KBDir"/"$SampleName"_krona_out.html"
 krona_stdout=$KBDir"/"$SampleName"_krona_stdout"
 krona_stderr=$KBDir"/"$SampleName"_krona_stderr"
-krona=${HOME}"/miniconda3/envs/pimgavir/bin/ktImportTaxonomy"
+
+# Dynamic Krona tool detection (prevents path-related failures)
+if command -v ktImportTaxonomy &> /dev/null; then
+    krona="ktImportTaxonomy"
+elif [ -f "${HOME}/miniconda3/envs/pimgavir_complete/bin/ktImportTaxonomy" ]; then
+    krona="${HOME}/miniconda3/envs/pimgavir_complete/bin/ktImportTaxonomy"
+elif [ -f "${HOME}/miniconda3/envs/pimgavir/bin/ktImportTaxonomy" ]; then
+    krona="${HOME}/miniconda3/envs/pimgavir/bin/ktImportTaxonomy"
+else
+    echo "ERROR: ktImportTaxonomy not found in PATH or expected conda environments"
+    exit 1
+fi
+
 merged_seq_aln=$KBDir"/sequences_aln"
 merged_seq_aln_tree=$KBDir"/"$merged_seq_aln".tree"
 

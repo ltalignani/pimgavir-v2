@@ -25,11 +25,12 @@ SCRATCH_DIRECTORY=/scratch/${USER}_${SLURM_JOB_ID}
 mkdir -p ${SCRATCH_DIRECTORY}/
 cd ${SCRATCH_DIRECTORY}/
 
-# Save directory
-NAME=$1
+# Save directory (fixed: clearer path construction)
+SampleName=$3
 METHOD=$5
-mkdir -p "/projects/large/PIMGAVIR/"${SLURM_JOB_ID}"_"${NAME%_*}"_"${METHOD#--}
-PATH_TO_SAVE="/projects/large/PIMGAVIR/"${SLURM_JOB_ID}"_"${NAME%_*}"_"${METHOD#--}
+OUTPUT_DIR="/projects/large/PIMGAVIR/results/${SLURM_JOB_ID}_${SampleName}_${METHOD#--}"
+mkdir -p "$OUTPUT_DIR"
+PATH_TO_SAVE="$OUTPUT_DIR"
 
 echo "Copy data to the scratch directory"
 # Copy to the scratch directory
@@ -93,8 +94,7 @@ echo "Done"
 # Run analysis
 cd pimgavir_dev/scripts/
 
-echo "what's in working (script) directory?"
-ls
+# Ready to execute pipeline
 
 # Clean up any previous BBDuk temporary files
 rm -rf *_rRNA_*.fq
@@ -247,8 +247,9 @@ clustering_func(){
 echo "Starting process..."
 
 ##Calling pre-process task
-NotrRNAReads=$SampleName"_not_rRNA.fq"
-#If a not_rRNA.fq file exists from the same sample name, the pre-process task is skipped
+# Fixed: Check for gzipped file (pre-process.sh creates .fq.gz, not .fq)
+NotrRNAReads=$SampleName"_not_rRNA.fq.gz"
+#If a not_rRNA.fq.gz file exists from the same sample name, the pre-process task is skipped
 if [ -f "$NotrRNAReads" ];
 	then
 	    	printf 'File %s already exists, skipping pre-process step \n' "$NotrRNAReads"
@@ -298,13 +299,25 @@ if [ $5 == 'ALL' ];
 		##Call read-based taxonomy classification
 		printf "Calling Read-based taxonomy task and using $JTrim threads"
 		echo -e "$(date) Calling Read-based taxonomy task \n" >> $logfile 2>&1
-		./taxonomy-gzip.sh $sequence_data $SampleName"_read-based-taxonomy" $JTrim _READ & ##It will run in bg mode
+		./taxonomy-gzip.sh $sequence_data $SampleName"_read-based-taxonomy" $JTrim _READ &
+		PID_READ=$!
 
 		##Call assembly-based taxonomy classification
-		assembly_func & ##It will run in bg mode
+		assembly_func &
+		PID_ASS=$!
 
 		##Call clustering-based taxonomy classification
-		clustering_func & ##It will run in bg mode
+		clustering_func &
+		PID_CLUST=$!
+
+		# Wait for all background jobs with error handling
+		echo "Waiting for all three taxonomy methods to complete..."
+		wait $PID_READ || { echo "ERROR: Read-based taxonomy failed"; exit 1; }
+		echo "Read-based taxonomy completed successfully"
+		wait $PID_ASS || { echo "ERROR: Assembly-based taxonomy failed"; exit 1; }
+		echo "Assembly-based taxonomy completed successfully"
+		wait $PID_CLUST || { echo "ERROR: Clustering-based taxonomy failed"; exit 1; }
+		echo "Clustering-based taxonomy completed successfully"
 
 	else
 		i=1

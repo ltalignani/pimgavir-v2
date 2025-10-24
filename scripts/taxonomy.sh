@@ -32,8 +32,20 @@ krakenViralClassified=$OutDir"/krakViral_class.out"$Assembler
 krakenViralUnClassified=$OutDir"/krakViral_unclass.out"$Assembler
 krakenViralReport=$OutDir"/krakViral_report.out"$Assembler
 
-ktImportTaxonomy=${HOME}"/miniconda3/envs/pimgavir/bin/ktImportTaxonomy"
-ktImportText=${HOME}"/miniconda3/envs/pimgavir/bin/ktImportText"
+# Dynamic Krona tool detection (prevents path-related failures)
+if command -v ktImportTaxonomy &> /dev/null; then
+    ktImportTaxonomy="ktImportTaxonomy"
+    ktImportText="ktImportText"
+elif [ -f "${HOME}/miniconda3/envs/pimgavir_complete/bin/ktImportTaxonomy" ]; then
+    ktImportTaxonomy="${HOME}/miniconda3/envs/pimgavir_complete/bin/ktImportTaxonomy"
+    ktImportText="${HOME}/miniconda3/envs/pimgavir_complete/bin/ktImportText"
+elif [ -f "${HOME}/miniconda3/envs/pimgavir/bin/ktImportTaxonomy" ]; then
+    ktImportTaxonomy="${HOME}/miniconda3/envs/pimgavir/bin/ktImportTaxonomy"
+    ktImportText="${HOME}/miniconda3/envs/pimgavir/bin/ktImportText"
+else
+    echo "ERROR: ktImportTaxonomy not found in PATH or expected conda environments"
+    exit 1
+fi
 
 echo -e "$(date) Run taxonomy classification (Kraken/Viral RefSeq) with the following parameters: \n" >> $logfile 2>&1
 echo -e "$(date) $KrakenViralDB $FilteredReads $krakenViralOut $krakenViralClassified $krakenViralUnClassified \n" >> $logfile 2>&1
