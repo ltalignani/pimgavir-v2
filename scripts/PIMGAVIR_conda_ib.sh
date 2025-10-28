@@ -289,7 +289,7 @@ if [ $5 == 'ALL' ];
 		##Call read-based taxonomy classification
 		printf "Calling Read-based taxonomy task and using $JTrim threads"
 		echo -e "$(date) Calling Read-based taxonomy task \n" >> $logfile 2>&1
-		./taxonomy-gzip.sh $sequence_data $SampleName"_read-based-taxonomy" $JTrim _READ &
+		./taxonomy_conda.sh $sequence_data $SampleName"_read-based-taxonomy" $JTrim _READ &
 		PID_READ=$!
 
 		##Call assembly-based taxonomy classification

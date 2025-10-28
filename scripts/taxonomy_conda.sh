@@ -44,7 +44,7 @@ kraken2 --db $KrakenViralDB $FilteredReads --output $krakenViralOut --classified
 
 echo -e "$(date) Create Krona reports in html format: \n" >> $logfile 2>&1
 cat $krakenViralOut | cut -f 2,3 > $OutDir"/krakViral.krona"$Assembler
-$ktImportTaxonomy $OutDir"/krakViral.krona"$Assembler -o $OutDir"/krakViral.krona.html"$Assembler || exit 76
+$ktImportTaxonomy $OutDir"/krakViral.krona"$Assembler -o $OutDir"/krakViral.krona"$Assembler".html" || exit 76
 
 ##Taxonomy classification with Kaiju and VIRUSES db
 kaijuNodes="../DBs/kaiju/bin/kaijudb/nodes.dmp"
@@ -52,7 +52,7 @@ kaijuNames="../DBs/kaiju/bin/kaijudb/names.dmp"
 kaijuDB="../DBs/kaiju/bin/kaijudb/viruses/kaiju_db_viruses.fmi"
 kaijuOut=$OutDir"/reads_kaiju.out"$Assembler
 kronaOut=$OutDir"/reads_kaiju.krona"$Assembler
-kronaHTMLout=$OutDir"/reads_kaiju.krona.html"$Assembler
+kronaHTMLout=$OutDir"/reads_kaiju.krona"$Assembler".html"
 
 echo -e "$(date) Run taxonomy classification (Kaiju/Viral RefSeq) with the following parameters: \n" >> $logfile 2>&1
 echo -e "$(date) $kaijuNodes $kaijuNames $kaijuDB $FilteredReads $kaijuOut $kronaOut $kronaHTMLout \n" >> $logfile 2>&1

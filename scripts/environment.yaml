@@ -1,3 +1,21 @@
+# ============================================================================
+# DEPRECATED: This environment file is kept for backward compatibility only
+# ============================================================================
+#
+# This environment (pimgavir_env) uses outdated package versions from 2022.
+# Please use one of the modern environments instead:
+#
+#   RECOMMENDED:
+#   - pimgavir_complete.yaml (all tools, recent versions, well-maintained)
+#   - pimgavir_minimal.yaml  (essential tools only, faster installation)
+#
+#   INSTALLATION:
+#   mamba env create -f pimgavir_complete.yaml
+#   conda activate pimgavir_complete
+#
+# This file will be removed in a future version of PIMGAVir.
+# ============================================================================
+
 name: pimgavir_env
 channels:
   - bioconda
