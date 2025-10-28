@@ -18,7 +18,7 @@ PIMGAVir identifies viruses from environmental samples using three complementary
 - ✅ **Conda environments**: Complete dependency management
 - ✅ **Fast installation**: Automated setup with mamba support
 - ✅ **Quality control**: TrimGalore, rRNA removal with BBDuk
-- ✅ **Multiple assemblers**: MEGAHIT and SPAdes for redundancy
+- ✅ **State-of-the-art assembly**: MEGAHIT + metaSPAdes dual-assembler strategy (optimal for Illumina metagenomics, see `docs/ASSEMBLY_STRATEGY.md`)
 - ✅ **Visualization**: Krona plots and BLAST reports
 - ✅ **Scratch management**: Automatic data transfer for cluster environments
 
@@ -78,6 +78,29 @@ mamba env create -f scripts/pimgavir_minimal.yaml
 # Complete environment (all tools)
 mamba env create -f scripts/pimgavir_complete.yaml
 ```
+
+### Database Setup
+
+**BLAST Taxonomy Database (Optional but Recommended)**
+
+The BLAST taxonomy database enables organism name display in BLAST results (instead of just taxid numbers).
+
+**Option 1: Automatic (recommended)**
+The setup scripts will prompt you to install taxdb automatically:
+```bash
+cd scripts/
+./setup_conda_env_fast.sh
+# Answer 'Y' when asked about BLAST taxonomy database
+```
+
+**Option 2: Manual installation**
+If you need to install it separately:
+```bash
+cd scripts/
+./setup_blast_taxdb.sh
+```
+
+This downloads the NCBI taxonomy database (~500 MB) to `DBs/NCBIRefSeq/`.
 
 ## Usage Examples
 

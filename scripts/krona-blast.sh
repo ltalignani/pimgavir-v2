@@ -13,6 +13,10 @@ logfile=$KBDir"/krona-blast.log"
 # NCBI viral RefSeq for blasn:
 ref_viruses_rep_genomes="../DBs/NCBIRefSeq/ref_viruses_rep_genomes"
 
+# Set BLASTDB environment variable for taxonomy lookup
+# This prevents the warning: "Taxonomy name lookup from taxid requires installation of taxdb database"
+export BLASTDB="../DBs/NCBIRefSeq"
+
 blast_out=$KBDir"/"$SampleName"_blastn.out"
 krona_tax_list=$KBDir"/"$SampleName"_krona_tax.lst"
 krona_out=$KBDir"/"$SampleName"_krona_out.html"
@@ -47,6 +51,18 @@ then
     exit 2
 else
     printf "%b" "Argument count correct. Continuing processing...\n"
+fi
+
+# Check if taxdb is installed
+if [ ! -f "$BLASTDB/taxdb.bti" ] || [ ! -f "$BLASTDB/taxdb.btd" ]; then
+    echo "WARNING: BLAST taxonomy database (taxdb) not found in $BLASTDB"
+    echo "BLAST will not be able to resolve taxonomy names from taxids."
+    echo ""
+    echo "To install taxdb, run:"
+    echo "  cd scripts/"
+    echo "  ./setup_blast_taxdb.sh"
+    echo ""
+    echo "Continuing anyway (taxid numbers will still be available)..."
 fi
 
 #Build Phylo-blast-dir
