@@ -9,6 +9,10 @@ SampleName=$4
 ConcScript="../../concatenate_reads.py" #../../concatenate_reads.py
 
 NumOfArgs=4
+
+# Create report directory if it doesn't exist
+mkdir -p report
+
 logfile="report/clustering-based.log"
 wd=$ClustDir"/"$merged_seq".split"
 

@@ -1,215 +1,342 @@
-# PIMGAVir v2
+# PIMGAVir v2.2
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Version](https://img.shields.io/badge/version-2.2-blue.svg)](https://github.com/ltalignani/PIMGAVIR-v2)
 
-**PIMGAVir** (Pipeline for Identification and Metagenomic Analysis of Viral sequences) is a comprehensive viral metagenomic analysis pipeline designed for high-performance computing (HPC) environments with SLURM job scheduler.
+**PIMGAVir** (Pipeline for Identification and Metagenomic Analysis of Viral sequences) is a comprehensive viral metagenomic analysis pipeline for high-performance computing (HPC) environments.
 
 ## Overview
 
-PIMGAVir identifies viruses from environmental samples using three complementary approaches:
+PIMGAVir identifies and characterizes viruses from environmental samples using **three complementary approaches**:
 
-- **Read-based taxonomy**: Direct classification of reads using Kraken2 and Kaiju
-- **Assembly-based taxonomy**: Assembly of contigs followed by classification
-- **Clustering-based taxonomy**: OTU clustering followed by classification
+1. **Read-based taxonomy**: Direct Kraken2/Kaiju classification
+2. **Assembly-based taxonomy**: MEGAHIT + SPAdes → classification
+3. **Clustering-based taxonomy**: VSEARCH OTU clustering → classification
 
-## Features
+Plus **🆕 7-phase viral genome analysis** (v2.2): Recovery → Annotation → Phylogenetics → Comparative genomics → Host prediction → Zoonotic assessment → Publication reports
 
-- ✅ **SLURM integration**: Optimized for HPC clusters
-- ✅ **Conda environments**: Complete dependency management
-- ✅ **Fast installation**: Automated setup with mamba support
-- ✅ **Quality control**: TrimGalore, rRNA removal with BBDuk
-- ✅ **State-of-the-art assembly**: MEGAHIT + metaSPAdes dual-assembler strategy (optimal for Illumina metagenomics, see `docs/ASSEMBLY_STRATEGY.md`)
-- ✅ **Visualization**: Krona plots and BLAST reports
-- ✅ **Scratch management**: Automatic data transfer for cluster environments
+## Key Features
+
+- ✅ **SLURM batch processing**: Multi-sample automation with array jobs
+- ✅ **Unified conda environment**: All 200+ tools in one environment
+- ✅ **Fast setup**: SLURM batch mode installation (SSH-disconnect safe)
+- ✅ **Database optimization**: Direct NAS access (saves ~170 GB + 25-55 min per job)
+- ✅ **Dual assemblers**: MEGAHIT + metaSPAdes for optimal viral genome recovery
+- ✅ **Complete viral analysis**: 7 phases from recovery to publication
+- ✅ **Infiniband support**: Optimized for IRD cluster (128TB shared scratch)
+- ✅ **Smart BLAST**: Auto-skips large files (>5 GB) in read-based mode
 
 ## Quick Start
 
-### 1. Clone the repository
+### 1. Clone Repository
 
 ```bash
 git clone https://github.com/ltalignani/PIMGAVIR-v2.git
 cd PIMGAVIR-v2
 ```
 
-### 2. Setup conda environment
+### 2. Install Environment
+
+**On HPC Cluster (Recommended)**
+
+```bash
+# Submit installation as SLURM job (SSH-disconnect safe)
+sbatch scripts/setup_conda_env_fast.sh
+
+# Monitor progress (15-90 min)
+tail -f setup_pimgavir_env_<JOBID>.out
+
+# Verify installation
+conda activate pimgavir_viralgenomes
+which trim_galore kraken2 megahit virsorter
+```
+
+**Locally (Testing)**
 
 ```bash
 cd scripts/
-./setup_conda_env_fast.sh
+bash setup_conda_env_fast.sh
+# Follow prompts
 ```
 
-### 3. Activate environment
+**Resources**: 128GB RAM, 16 CPUs, 2h time (completes in 15-90 min)
+
+### 3. Setup Databases
+
+**Core databases** (Krona, BLAST taxdb): ✅ Installed automatically in batch mode
+
+**Viral genome databases** (VirSorter2, CheckV, DRAM - 170 GB, 4-8 hours):
 
 ```bash
-conda activate pimgavir_minimal
-# or: conda activate pimgavir_complete
+# iTrop cluster: DRAM fix required first
+sbatch --partition=long --time=12:00:00 --mem=16GB \
+       --wrap="source ~/miniconda3/etc/profile.d/conda.sh && \
+               conda activate pimgavir_viralgenomes && \
+               cd /projects/large/PIMGAVIR/pimgavir_dev/scripts && \
+               bash DRAM_FIX.sh && \
+               bash setup_viral_databases.sh"
 ```
 
-### 4. Run the pipeline
-
-**Option A: Hybrid approach (system modules + conda)**
+**Interactive mode** (use screen/tmux):
 
 ```bash
-sbatch PIMGAVIR.sh R1.fastq.gz R2.fastq.gz SampleName 40 [--read_based | --ass_based | --clust_based | ALL] [--filter]
-```
-
-**Option B: Pure conda approach (recommended)**
-
-```bash
-sbatch PIMGAVIR_conda.sh R1.fastq.gz R2.fastq.gz SampleName 40 [--read_based | --ass_based | --clust_based | ALL] [--filter]
-```
-
-## Installation Options
-
-### Recommended: Fast Setup
-
-Uses mamba for rapid installation:
-
-```bash
-./scripts/setup_conda_env_fast.sh
-```
-
-### Manual Setup
-
-```bash
-# Minimal environment (essential tools only)
-mamba env create -f scripts/pimgavir_minimal.yaml
-
-# Complete environment (all tools)
-mamba env create -f scripts/pimgavir_complete.yaml
-```
-
-### Database Setup
-
-**BLAST Taxonomy Database (Optional but Recommended)**
-
-The BLAST taxonomy database enables organism name display in BLAST results (instead of just taxid numbers).
-
-**Option 1: Automatic (recommended)**
-The setup scripts will prompt you to install taxdb automatically:
-```bash
+srun -p normal -c 16 --mem=128GB --pty bash -i
 cd scripts/
-./setup_conda_env_fast.sh
-# Answer 'Y' when asked about BLAST taxonomy database
+bash DRAM_FIX.sh               # iTrop cluster only (ssh/ftp issues)
+bash setup_viral_databases.sh  # 4-8 hours
 ```
 
-**Option 2: Manual installation**
-If you need to install it separately:
+### 4. Run Pipeline
+
+**Batch mode** (auto-detects samples in `input/`):
+
 ```bash
-cd scripts/
-./setup_blast_taxdb.sh
+# Place samples in input/ directory
+mkdir -p input/
+cp /path/to/*_R*.fastq.gz input/
+
+# Process all samples
+sbatch scripts/PIMGAVIR_conda.sh 40 ALL             # All 3 methods + viral analysis
+sbatch scripts/PIMGAVIR_conda.sh 40 --ass_based     # Assembly-based (best for >5 GB)
+sbatch scripts/PIMGAVIR_conda.sh 40 --read_based    # Read-based only
 ```
 
-This downloads the NCBI taxonomy database (~500 MB) to `DBs/NCBIRefSeq/`.
+**IRD cluster** (Infiniband):
+
+```bash
+sbatch scripts/PIMGAVIR_conda_ib.sh 40 ALL          # 128TB shared scratch, high-speed I/O
+```
+
+**Single sample**:
+
+```bash
+sbatch scripts/PIMGAVIR_conda.sh R1.fq.gz R2.fq.gz Sample1 40 ALL
+```
+
+## What's New in v2.2
+
+### 🦠 7-Phase Viral Genome Analysis
+
+Runs automatically after assembly (phases 1-7):
+
+1. **Recovery**: VirSorter2 → CheckV → vRhyme (viral genome identification)
+2. **Annotation**: DRAM-v (functional genes, AMG detection)
+3. **Phylogenetics**: MAFFT → IQ-TREE → MrBayes (evolutionary trees)
+4. **Comparative**: geNomad → MMseqs2 → vConTACT2 (taxonomy networks)
+5. **Host prediction**: CRISPR/tRNA/k-mer/protein (4 complementary methods)
+6. **Zoonotic assessment**: Furin sites, RBD detection, risk scoring (0-100)
+7. **Publication reports**: Figures (PDF/PNG), tables (TSV), methods, HTML
+
+**Output**: `viral-genomes-megahit/` and `viral-genomes-spades/` with publication-ready results
+
+See [`VIRAL_GENOME_QUICKSTART.md`](VIRAL_GENOME_QUICKSTART.md) for details.
+
+### ⚡ Performance Optimizations
+
+- **Database access**: Direct NAS access (saves ~170 GB + 25-55 min per job)
+- **SLURM installation**: Robust, uninterrupted environment setup
+- **Smart BLAST**: Auto-skips large files (>5 GB) in read-based mode
+- **Unified environment**: Single `pimgavir_viralgenomes` (was 3 environments)
+
+### 🔧 iTrop Cluster Support
+
+- **DRAM HTTPS fix**: `DRAM_FIX.sh` for SSL certificate / ftp issues
+- **Infiniband scripts**: `*_ib.sh` for 128TB shared scratch
+- **Batch installation**: Pre-configured SLURM headers for `normal` partition
+
+## Installation Details
+
+### What Gets Installed
+
+| Component | Size | Batch Mode | Interactive | Time |
+|-----------|------|------------|-------------|------|
+| **Environment** | 8-10 GB | ✅ Auto | ✅ Auto | 15-90 min |
+| **Krona taxonomy** | 200 MB | ✅ Auto | ✅ Auto | 5 min |
+| **BLAST taxdb** | 500 MB | ✅ Auto | ❓ Prompts | 5 min |
+| **VirSorter2** | 10 GB | ⏭️ Skipped | ❓ Prompts | 30 min |
+| **CheckV** | 1.5 GB | ⏭️ Skipped | ❓ Prompts | 10 min |
+| **DRAM-v** | 150 GB | ⏭️ Skipped | ❓ Prompts | 3-6 hours |
+| **RVDB** | 5 GB | ⏭️ Skipped | ❓ Prompts | 20 min |
+
+**Batch mode**: Installs environment + core databases, skips viral databases (too long)
+**Interactive mode**: Prompts for each optional database
+**Viral databases**: Best installed separately via SLURM batch (see step 3 above)
+
+### Environment Contents
+
+**Core pipeline** (~100 packages):
+- Quality control: TrimGalore, cutadapt, FastQC, BBDuk
+- Taxonomy: Kraken2, Kaiju, Krona
+- Assembly: MEGAHIT, SPAdes, QUAST, Bowtie2, SAMtools, Pilon
+- Alignment: BLAST+, Diamond, vsearch
+- Utilities: seqkit, taxonkit, parallel
+
+**Viral analysis** (~100 packages):
+- Phase 1: VirSorter2, CheckV, vRhyme, Prodigal-gv
+- Phase 2: DRAM (KOfam, Pfam, VOG annotation)
+- Phase 3: MAFFT, trimAl, IQ-TREE, MrBayes, RAxML-NG
+- Phase 4: geNomad, MMseqs2, vConTACT2, CD-HIT, Mash
+- Phase 5: minced (CRISPR), tRNAscan-SE, EMBOSS, bedtools
+- Phase 6-7: R (ggplot2, pheatmap, vegan, ape), Python (matplotlib, seaborn, ete3)
 
 ## Usage Examples
 
-### Using PIMGAVIR.sh (Hybrid: system modules + conda)
+### Process Multiple Samples (Batch Mode)
 
 ```bash
-# Full pipeline with all methods
-sbatch PIMGAVIR.sh sample_R1.fastq.gz sample_R2.fastq.gz sample01 40 ALL
+# Structure:
+# input/
+#   sample1_R1.fastq.gz
+#   sample1_R2.fastq.gz
+#   sample2_R1.fastq.gz
+#   sample2_R2.fastq.gz
 
-# Single method execution
-sbatch PIMGAVIR.sh sample_R1.fastq.gz sample_R2.fastq.gz sample01 40 --read_based
-
-# With host filtering
-sbatch PIMGAVIR.sh sample_R1.fastq.gz sample_R2.fastq.gz sample01 40 ALL --filter
+sbatch scripts/PIMGAVIR_conda.sh 40 ALL
+# Auto-detects: sample1, sample2
+# Launches SLURM array job
+# Results: results/<JOBID>_<sample>_ALL/
 ```
 
-### Using PIMGAVIR_conda.sh (Pure conda - recommended)
+### Assembly-Based Only (Large Datasets >5 GB)
 
 ```bash
-# Full pipeline with all methods (pure conda)
-sbatch PIMGAVIR_conda.sh sample_R1.fastq.gz sample_R2.fastq.gz sample01 40 ALL
+# Recommended for large samples - BLAST runs on contigs (much faster)
+sbatch scripts/PIMGAVIR_conda.sh 40 --ass_based
 
-# Single method execution (pure conda)
-sbatch PIMGAVIR_conda.sh sample_R1.fastq.gz sample_R2.fastq.gz sample01 40 --read_based
-
-# With host filtering (pure conda)
-sbatch PIMGAVIR_conda.sh sample_R1.fastq.gz sample_R2.fastq.gz sample01 40 ALL --filter
+# Includes automatic viral genome analysis (7 phases)
+# Results: viral-genomes-megahit/ and viral-genomes-spades/
 ```
 
-## Pipeline Architecture
+### With Host Filtering
 
-### Main Scripts
+```bash
+# Filter out host/unwanted sequences with Diamond BLAST
+sbatch scripts/PIMGAVIR_conda.sh 40 ALL --filter
+```
 
-- **`PIMGAVIR.sh`**: Hybrid approach using system modules + conda environments
-- **`PIMGAVIR_conda.sh`**: Pure conda approach (recommended for better reproducibility)
+### IRD Cluster (Infiniband)
 
-### Core Modules
-
-- `pre-process.sh`: Quality trimming and rRNA removal
-- `reads-filtering.sh`: Host/unwanted sequence removal
-- `assembly.sh`: Genome assembly using MEGAHIT and SPAdes
-- `clustering.sh`: OTU clustering with VSEARCH
-- `taxonomy.sh`: Taxonomic classification with Kraken2/Kaiju
-- `krona-blast.sh`: Visualization and BLAST annotation
-
-### Dependencies
-
-All tools are available in conda environments:
-
-- **Quality control**: fastqc, cutadapt, trim-galore
-- **rRNA removal**: bbmap (BBDuk)
-- **Taxonomic classification**: kraken2, kaiju, krona
-- **Assembly**: megahit, spades, quast, bowtie2, samtools
-- **Sequence analysis**: blast, diamond, prokka, vsearch
-- **Utilities**: seqkit, parallel, rsync, pigz
-
-## Requirements
-
-- **HPC cluster** with SLURM scheduler
-- **Conda/Mamba** package manager
-- **Memory**: 256GB recommended
-- **Storage**: Fast scratch filesystem for temporary data
-- **Runtime**: ~7 days for large datasets
+```bash
+# Uses 128TB shared scratch, high-speed I/O
+sbatch scripts/PIMGAVIR_conda_ib.sh 40 ALL
+```
 
 ## Output Structure
 
 ```
-results/
-├── read-based-taxonomy/     # Direct read classification
-├── assembly-based/          # Assembly and classification
-├── clustering-based/        # OTU clustering and classification
-└── report/                  # Logs and processing reports
+results/<JOBID>_<SampleName>_<METHOD>/
+├── read-based-taxonomy/          # Kraken2, Kaiju results
+│   ├── kraken2_output.txt
+│   ├── kaiju_output.txt
+│   └── krona_plot.html
+├── assembly-based/               # MEGAHIT + SPAdes assemblies
+│   ├── megahit/
+│   ├── spades/
+│   └── polished/
+├── clustering-based/             # VSEARCH OTU clustering
+│   ├── otus.fasta
+│   └── taxonomy/
+├── viral-genomes-megahit/        # 7-phase viral analysis (MEGAHIT)
+│   ├── phase1_recovery/
+│   ├── phase2_annotation/
+│   ├── phase3_phylogenetics/
+│   ├── phase4_comparative/
+│   ├── phase5_host_ecology/
+│   ├── phase6_zoonotic/
+│   └── phase7_publication_report/
+├── viral-genomes-spades/         # 7-phase viral analysis (SPAdes)
+└── report/                       # Logs and processing reports
 ```
 
-## Documentation
+See [`OUTPUT_FILES.md`](OUTPUT_FILES.md) for complete file listing.
 
-- [`CONDA_MIGRATION_GUIDE.md`](scripts/CONDA_MIGRATION_GUIDE.md): Migration from system modules
-- [`INSTALL_SUMMARY.md`](scripts/INSTALL_SUMMARY.md): Installation troubleshooting
-- [`SCRIPT_VERSIONS_GUIDE.md`](scripts/SCRIPT_VERSIONS_GUIDE.md): Script variants explanation
+## Troubleshooting
+
+### Environment Installation Fails
+
+```bash
+# Check logs
+cat setup_pimgavir_env_<JOBID>.err
+
+# Common fixes:
+# - Increase memory: --mem=256GB
+# - Increase time: --time=12:00:00
+# - Clean conda cache: conda clean --all
+```
+
+### DRAM Database Download Fails (iTrop Cluster)
+
+```bash
+# SSL certificate / ftp issues - apply fix first
+cd scripts/
+bash DRAM_FIX.sh
+
+# Then retry
+bash setup_viral_databases.sh
+```
+
+### Pipeline Fails: "command not found"
+
+```bash
+# Verify environment activation
+conda activate pimgavir_viralgenomes
+which trim_galore bbduk.sh kraken2
+
+# If missing tools, recreate environment
+conda env remove -n pimgavir_viralgenomes
+cd scripts/
+sbatch setup_conda_env_fast.sh
+```
+
+### BLAST Takes Too Long
+
+```bash
+# For large samples (>5 GB), use assembly-based mode instead
+# BLAST runs on contigs (much faster than reads)
+sbatch scripts/PIMGAVIR_conda.sh 40 --ass_based
+```
+
+## Requirements
+
+- **HPC cluster** with SLURM job scheduler
+- **Conda/Mamba** package manager
+- **Disk space**:
+  - Environment: ~10 GB
+  - Databases: ~170 GB (core) + ~170 GB (viral, optional)
+  - Scratch: ~50-100 GB per sample
+- **Memory**: 128-256 GB for large samples
+- **CPUs**: 16+ recommended
 
 ## Citation
 
 If you use PIMGAVir in your research, please cite:
 
-```text
-[Citation to be added]
+```
+Talignani L, et al. (2025). PIMGAVir v2.2: A comprehensive pipeline for viral
+metagenomic analysis with complete genome characterization.
+GitHub: https://github.com/ltalignani/PIMGAVIR-v2
 ```
 
-## License
+## Documentation
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a Pull Request
+- **[CONDA_ENVIRONMENT_SETUP_BATCH.md](docs/CONDA_ENVIRONMENT_SETUP_BATCH.md)**: Detailed installation guide
+- **[VIRAL_GENOME_QUICKSTART.md](VIRAL_GENOME_QUICKSTART.md)**: Viral genome analysis guide
+- **[OUTPUT_FILES.md](OUTPUT_FILES.md)**: Complete output file reference
+- **[BLAST_SKIP_SOLUTION.md](docs/BLAST_SKIP_SOLUTION.md)**: BLAST optimization details
+- **[CHANGELOG.md](CHANGELOG.md)**: Version history and updates
 
 ## Support
 
-- 📧 Issues: [GitHub Issues](https://github.com/ltalignani/PIMGAVIR-v2/issues)
-- 📖 Documentation: See `scripts/` directory
-- 💬 Questions: Open a discussion on GitHub
+- **Issues**: https://github.com/ltalignani/PIMGAVIR-v2/issues
+- **Email**: loic.talignani@ird.fr
+- **Cluster support** (iTrop/IRD): ndomassi.tando@ird.fr
 
-## Acknowledgments
+## License
 
-- BBDuk for efficient rRNA removal
-- Kraken2 and Kaiju for taxonomic classification
-- MEGAHIT and SPAdes for assembly
-- Krona for interactive visualizations
+MIT License - see [LICENSE](LICENSE) file for details.
+
+---
+
+**Version**: 2.2
+**Last updated**: 2025-11-04
+**Maintained by**: Loïc Talignani (IRD, iTrop)

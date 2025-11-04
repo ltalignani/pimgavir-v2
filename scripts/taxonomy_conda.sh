@@ -3,6 +3,10 @@ FilteredReads=$1        ##Path to the reads
 OutDir=$2	              ##folder to store results
 JTrim=$3	              ##Number of threads
 Assembler=$4	          ##Assembler name where the contings come from
+
+# Create report directory if it doesn't exist
+mkdir -p report
+
 logfile="report/taxonomy.log"
 
 NumOfArgs=4
@@ -25,8 +29,11 @@ fi
 ##Making folder "reads-based-taxonomy" for storing results
 mkdir -p $OutDir
 
+# Use databases from NAS if PIMGAVIR_DBS_DIR is set, otherwise use relative path (backward compatible)
+PIMGAVIR_DBS_DIR="${PIMGAVIR_DBS_DIR:-../DBs}"
+
 ##Taxonomy classification with KRAKEN and RefSeq viral db
-KrakenViralDB="../DBs/KrakenViral"
+KrakenViralDB="${PIMGAVIR_DBS_DIR}/KrakenViral"
 krakenViralOut=$OutDir"/krakViral.out"$Assembler
 krakenViralClassified=$OutDir"/krakViral_class.out"$Assembler
 krakenViralUnClassified=$OutDir"/krakViral_unclass.out"$Assembler
@@ -47,9 +54,9 @@ cat $krakenViralOut | cut -f 2,3 > $OutDir"/krakViral.krona"$Assembler
 $ktImportTaxonomy $OutDir"/krakViral.krona"$Assembler -o $OutDir"/krakViral.krona"$Assembler".html" || exit 76
 
 ##Taxonomy classification with Kaiju and VIRUSES db
-kaijuNodes="../DBs/kaiju/bin/kaijudb/nodes.dmp"
-kaijuNames="../DBs/kaiju/bin/kaijudb/names.dmp"
-kaijuDB="../DBs/kaiju/bin/kaijudb/viruses/kaiju_db_viruses.fmi"
+kaijuNodes="${PIMGAVIR_DBS_DIR}/kaiju/bin/kaijudb/nodes.dmp"
+kaijuNames="${PIMGAVIR_DBS_DIR}/kaiju/bin/kaijudb/names.dmp"
+kaijuDB="${PIMGAVIR_DBS_DIR}/kaiju/bin/kaijudb/viruses/kaiju_db_viruses.fmi"
 kaijuOut=$OutDir"/reads_kaiju.out"$Assembler
 kronaOut=$OutDir"/reads_kaiju.krona"$Assembler
 kronaHTMLout=$OutDir"/reads_kaiju.krona"$Assembler".html"

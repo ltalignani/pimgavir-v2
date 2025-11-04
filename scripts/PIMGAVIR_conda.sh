@@ -1,350 +1,329 @@
 #!/bin/bash
 
-###################configuration slurm##############################
-# PIMGAVir - Conda Version
-#SBATCH --job-name=PIMGAVir
-#SBATCH --output=pimgavir.%A.out
-#SBATCH --error=pimgavir.%A.err
-#SBATCH --time=6-23:59:59
-#SBATCH --partition=highmem
-#SBATCH --nodes=1
-#sbatch --cpus-per-task=40
-#SBATCH --mem=256GB
-# Define email for script execution
-#SBATCH --mail-user=loic.talignani@ird.fr
-# Define type notifications (NONE, BEGIN, END, FAIL, ALL)
-#SBATCH --mail-type=ALL
-###################################################################
-
-#Usage sbatch PIMGAVIR.sh R1.fastq.gz R2.fastq.gz SampleName NumbOfCores ALL|[--read_based --ass_based --clust_based] [--filter]
-#As an example: sbatch PIMGAVIR.sh sample9_1.fastq.gz sample9_2.fastq.gz sample9 40 --read_based --filter
-
-# Define and create a unique scratch directory for this job
-SCRATCH_DIRECTORY=/scratch/${USER}_${SLURM_JOB_ID}
-
-mkdir -p ${SCRATCH_DIRECTORY}/
-cd ${SCRATCH_DIRECTORY}/
-
-# Save directory
-NAME=$1
-METHOD=$5
-mkdir -p "/projects/large/PIMGAVIR/results/"${SLURM_JOB_ID}"_"${NAME%_*}"_"${METHOD#--}
-PATH_TO_SAVE="/projects/large/PIMGAVIR/results/"${SLURM_JOB_ID}"_"${NAME%_*}"_"${METHOD#--}
-
-echo "Copy data to the scratch directory"
-# Copy to the scratch directory
-scp -r /projects/large/PIMGAVIR/pimgavir_dev/ ${SCRATCH_DIRECTORY}
-
-echo "Done"
-
-echo "Setting up conda environment"
-# Purge all system modules to avoid conflicts
-module purge
-
-# Activate conda environment - all tools are included in conda
-echo "Activating conda environment..."
-
-# Initialize conda for this shell session
-if [ -f "${HOME}/miniconda3/etc/profile.d/conda.sh" ]; then
-    source "${HOME}/miniconda3/etc/profile.d/conda.sh"
-elif [ -f "${HOME}/anaconda3/etc/profile.d/conda.sh" ]; then
-    source "${HOME}/anaconda3/etc/profile.d/conda.sh"
-elif [ -f "/opt/miniconda3/etc/profile.d/conda.sh" ]; then
-    source "/opt/miniconda3/etc/profile.d/conda.sh"
-else
-    echo "Error: Cannot find conda installation"
-    echo "Please ensure conda is installed and accessible"
-    exit 1
-fi
-
-# Try to activate conda environment (complete first, then minimal)
-if conda env list | grep -q "pimgavir_complete"; then
-    conda activate pimgavir_complete
-    echo "Activated pimgavir_complete environment"
-elif conda env list | grep -q "pimgavir_minimal"; then
-    conda activate pimgavir_minimal
-    echo "Activated pimgavir_minimal environment"
-else
-    echo "Error: No PIMGAVir conda environment found"
-    echo "Please create one of the following environments:"
-    echo "  mamba env create -f scripts/pimgavir_complete.yaml  (recommended)"
-    echo "  mamba env create -f scripts/pimgavir_minimal.yaml   (minimal)"
-    echo "OR run: ./scripts/setup_conda_env_fast.sh"
-    exit 1
-fi
-
-# Verify conda environment activation
-if [ $? -ne 0 ]; then
-    echo "Error: Failed to activate conda environment"
-    exit 1
-fi
-
-echo "Conda environment activated successfully"
-echo "Available tools:"
-which kraken2 kaiju ktImportTaxonomy megahit blastn bbduk.sh
-
-echo "Done"
-
-# Run analysis
-cd pimgavir_dev/scripts/
-
-echo "what's in working (script) directory?"
-ls
-
-# Clean up any previous BBDuk temporary files
-rm -rf *_rRNA_*.fq
-rm -rf *_rrna_stats.txt
-
-######################################### ENVIRONMENT SETUP - END ##################################
+################################################################################
+# PIMGAVir Batch Launcher - Conda Version
+#
+# This script automatically detects and processes all paired-end samples in the
+# input/ directory using SLURM array jobs for parallel execution.
+#
+# New Usage (Batch Mode):
+#   sbatch PIMGAVIR_conda.sh <NumbOfCores> <METHOD> [--filter]
+#
+# Legacy Usage (Single Sample - Backward Compatible):
+#   sbatch PIMGAVIR_conda.sh R1.fastq.gz R2.fastq.gz SampleName <NumbOfCores> <METHOD> [--filter]
+#
+# Examples:
+#   # Batch mode - processes all samples in input/
+#   sbatch PIMGAVIR_conda.sh 40 ALL
+#   sbatch PIMGAVIR_conda.sh 40 --read_based --filter
+#
+#   # Legacy mode - single sample
+#   sbatch PIMGAVIR_conda.sh sample_R1.fq.gz sample_R2.fq.gz sample1 40 ALL --filter
+#
+# Directory Structure:
+#   input/           - Place all sample FASTQ.gz files here
+#   logs/            - SLURM output/error logs
+#   samples.list     - Auto-generated sample list (temporary)
+#
+################################################################################
 
 ##Versioning
-version="PIMGAVir V.2.0 -- 22.10.2025 (Conda Version)"
+version="PIMGAVir V.2.1 -- 29.10.2025 (Batch Launcher - Conda Version)"
 
-##Pre-processing parameters
-R1=$1 				#R1.fastq.gz
-R2=$2 				#R2.fastq.gz
-SampleName=$3	#Name associated to the sample
-JTrim=$4			#Number of cores to use
+################################################################################
+# Configuration - Project Location on NAS
+################################################################################
+# IMPORTANT: If you copy this script to a different location (e.g., ~/scripts/),
+# you MUST set the absolute path to the project directory on the NAS here:
+PIMGAVIR_PROJECT_DIR="/projects/large/PIMGAVIR/pimgavir_dev"
 
-##Reads-filtering parameters
-filter=${@: -1}	#Filter option (boolean: if specified the filter step will be done, otherwise not)
-DiamondDB="../DBs/Diamond-RefSeqProt/refseq_protein_nonredund_diamond.dmnd"
-OutDiamondDB="blastx_diamond.m8"
-InputDB=$SampleName"_not_rRNA.fq"
-PathToRefSeq="../DBs/NCBIRefSeq" # Changed RefSeq in NCBIRefSeq
-UnWanted="unwanted.txt"
+# If empty, the script will try to auto-detect based on submission directory
+# PIMGAVIR_PROJECT_DIR=""
 
-##Assembly parameters
-megahit_contigs_improved="assembly-based/megahit_contigs_improved.fasta"
-spades_contigs_improved="assembly-based/spades_contigs_improved.fasta"
+################################################################################
+# Detect Mode: Batch vs Legacy
+################################################################################
 
-##Clustering parameters
-OTUDB="clustering-based/otus.fasta"
+# Check if first argument is a FASTQ file (legacy mode)
+if [[ "$1" == *.fastq.gz ]] || [[ "$1" == *.fq.gz ]]; then
+    LEGACY_MODE=true
+    echo "=========================================="
+    echo "Legacy Mode Detected"
+    echo "=========================================="
+    echo "Forwarding to worker script for single sample processing..."
+    echo ""
 
-PassedArgs=$#   							#Number of passed arguments
-NumOfArgs=4										#At least 4 parameters are needed
-Trimgalore="trim-galore.log"
-logfile="pimgavir.log"
+    # Forward all arguments to worker script
+    # Legacy usage: R1 R2 SampleName Threads Method [--filter]
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-#echo "Number of passed args is " $PassedArgs
+    # Call worker script with all arguments
+    exec bash "${SCRIPT_DIR}/PIMGAVIR_worker.sh" "$@"
 
-##Checking for Version option
-if (($# == 1))
-then
-	if [ "$1" == "--version" ]
-	then
-		echo $version
-	else
-		echo "Option not valid"
-	fi
-	exit
+else
+    LEGACY_MODE=false
+    echo "=========================================="
+    echo "PIMGAVir Batch Launcher"
+    echo "=========================================="
+    echo "Version: $version"
+    echo "Date: $(date)"
+    echo "User: ${USER}"
+    echo ""
 fi
 
-##Checking the number of arguments
-if (( $# < $NumOfArgs ))
-then
-    printf "%b" "Error. Not enough arguments.\n" >&2
-    printf "%b" "Usage PIMGAVIR_conda.sh R1.fastq.gz R2.fastq.gz SampleName NumbOfCores ALL|[--read_based --ass_based --clust_based] [--filter] \n" >&2
+################################################################################
+# Batch Mode: Parse Arguments
+################################################################################
+JTrim=$1           # Number of cores
+METHOD=$2          # Analysis method
+filter=$3          # Optional --filter flag
+
+# Validate arguments
+if [ -z "$JTrim" ] || [ -z "$METHOD" ]; then
+    echo "ERROR: Missing required arguments for batch mode"
+    echo ""
+    echo "Batch Mode Usage:"
+    echo "  sbatch PIMGAVIR_conda.sh <NumbOfCores> <METHOD> [--filter]"
+    echo ""
+    echo "Legacy Mode Usage:"
+    echo "  sbatch PIMGAVIR_conda.sh R1.fastq.gz R2.fastq.gz SampleName <NumbOfCores> <METHOD> [--filter]"
+    echo ""
+    echo "Examples:"
+    echo "  sbatch PIMGAVIR_conda.sh 40 ALL"
+    echo "  sbatch PIMGAVIR_conda.sh 40 --read_based --filter"
+    echo ""
     exit 1
-elif (( $# > $NumOfArgs+4 ))
-then
-    printf "%b" "Error. Too many arguments.\n" >&2
-    printf "%b" "Usage PIMGAVIR_conda.sh R1.fastq.gz R2.fastq.gz SampleName NumbOfCores ALL|[--read_based --ass_based --clust_based] [--filter] \n" >&2
-    exit 2
-else
-    if [ -n "$JTrim" ] && [ "$JTrim" -eq "$JTrim" ] 2>/dev/null; then
-  	echo "Going to use $JTrim threads"
-    	printf "%b" "Argument count correct. Continuing processing..."
-    	case $filter in
-  		("--filter")    echo "Filtering activated ";;
-  		(*) echo "Filtering not activated ";;
-  	esac
-    else
-  	echo "$JTrim is not a valid number of threads. Please insert an integer value"
-  	exit 2
-    fi
 fi
 
-##Checking validity of arguments
-#1. Check that input files exist
-if [ ! -f "$R1" ] || [ ! -f "$R2" ]; then
-	echo "$R1 or $R2 don't exist. Exiting"
-	echo -e "$(date) $R1 or $R2 don't exist. Exiting \n" >> $logfile 2>&1
-	exit
+# Validate threads
+if ! [[ "$JTrim" =~ ^[0-9]+$ ]] || [ "$JTrim" -le 0 ]; then
+    echo "ERROR: Invalid number of cores: $JTrim"
+    echo "Please provide a positive integer"
+    exit 1
 fi
 
-#2. Check the NumberOfCores is a valid number
-if [[ ! $JTrim -gt 00 ]]; then
-        echo "Invalid number of cores. Exiting"
-	echo -e "$(date) Invalid number of cores. Exiting \n" >> $logfile 2>&1
-	exit
-fi
-
-#3. Check the methods are valid
-args=("$@")
-
-if [ ${args[4]} != "ALL" ];
-then
-	if [ ${args[$PassedArgs-1]} = "--filter" ];
-	then
-		count=$((PassedArgs-1))
-		#echo "filter yes --> " $count
-	else
-		count=$PassedArgs
-		#echo "filter not --> " $count
-	fi
-	for ((j=4; j<count; j++))
-		do
-			case ${args[$j]} in
-			("--read_based")
-		   		printf "Read-based, valid method found \n"
-		   		echo -e "$(date) Read-based, valid method found \n" >> $logfile 2>&1 ;;
-		   	("--ass_based")
-		   		printf "Assembly-based, valid method found \n"
-		   		echo -e "$(date) Assembly-based, valid method found \n" >> $logfile 2>&1 ;;
-		   	("--clust_based")
-		   		printf "Clustering-based, valid method found \n"
-		    		echo -e "$(date) Clustering-based, valid method found \n" >> $logfile 2>&1 ;;
-		   	(*)
-		   		printf "One of the methods is not valid, please check the correct spelling \n"
-		   		echo "One of the following option must be specified: ALL|[--read_based --ass_based --clust_based] "
-		   		exit;;
-	   		esac
-	   	done
-else
-	printf "ALL option, valid method found \n"
-	echo -e "$(date) ALL option, valid method found \n" >> $logfile 2>&1
-fi
-
-assembly_func(){
-	printf "Calling Assembly-based taxonomy task\n and using $JTrim threads"
-	echo -e "$(date) Calling Assembly-based taxonomy task\n" >> $logfile 2>&1
-		./assembly.sh $sequence_data assembly-based $JTrim &&
-		{
-			./taxonomy_conda.sh $megahit_contigs_improved $SampleName"_assembly-based-taxonomy" $JTrim _MEGAHIT &&
-	   		./krona-blast_conda.sh $spades_contigs_improved $SampleName"_assembly-based-SPADES-KRONA-BLAST" $JTrim $SampleName
-	   		./taxonomy_conda.sh $spades_contigs_improved $SampleName"_assembly-based-taxonomy" $JTrim  _SPADES &&
-	   		./krona-blast_conda.sh $megahit_contigs_improved $SampleName"_assembly-based-MEGAHIT-KRONA-BLAST" $JTrim $SampleName
-	   	}
-}
-
-clustering_func(){
-	printf "Calling Clustering-based taxonomy task\n and using $JTrim threads"
-	echo -e "$(date) Calling Clustering-based taxonomy task\n" >> $logfile 2>&1
-		./clustering.sh $sequence_data $SampleName"_clustering-based" $JTrim $SampleName &&
-		./taxonomy_conda.sh $OTUDB $SampleName"_clustering-based-taxonomy" $JTrim _OTU &&
-		./krona-blast_conda.sh $OTUDB $SampleName"_clustering-based-KRONA-BLAST" $JTrim $SampleName
-}
-
-echo "Starting process..."
-
-##Calling pre-process task
-NotrRNAReads=$SampleName"_not_rRNA.fq"
-#If a not_rRNA.fq file exists from the same sample name, the pre-process task is skipped
-if [ -f "$NotrRNAReads" ];
-	then
-	    	printf 'File %s already exists, skipping pre-process step \n' "$NotrRNAReads"
-	    	printf 'File %s already exists, skipping pre-process step \n' "$NotrRNAReads" >> $logfile 2>&1
-    	else
-	  	echo "Calling pre-process task (conda version)"
-		echo -e "$(date) Calling pre-process task (conda version)\n" >> $logfile 2>&1
-		./pre-process_conda.sh $R1 $R2 $SampleName $JTrim $METHOD
-fi
-
-##Check for reads-filtering task
-case $filter in
-  	("--filter")
-  			if [ -f "$UnWanted" ]; then
-				echo -e "$UnWanted file found, moving ahead \n" >> $logfile 2>&1
-				echo -e "$UnWanted file found, moving ahead \n"
-	  			max=$(($#-1)) ##Setting the current number of arguments
-	  			sequence_data="readsNotrRNA_filtered.fq.gz" ##Setting the sequence name to be analyzed ---added .gz
-	  			if [ ! -f "$sequence_data" ]; then
-		  			echo "Calling reads-filtering task"
-					echo -e "$(date) Calling reads-filtering task\n" >> $logfile 2>&1 ##;; ##add or remove ;; when when re-activate or deactivate the filtering step
-					./reads-filtering.sh $DiamondDB $JTrim $InputDB $OutDiamondDB $PathToRefSeq $UnWanted
-				else
-					printf 'File %s already exists, skipping reads-filtering step \n' "$sequence_data"
-    					printf 'File %s already exists, skipping reads-filtering step \n' "$sequence_data" >> $logfile 2>&1
-    				fi
-			else
-    				echo -e "$UnWanted file does not exist...terminated \n" >> $logfile 2>&1
-    				echo -e "$UnWanted file does not exist...terminated \n"
-    				exit 1
- 			fi
- 			;;
-  	(*)
-  			max=$# ##Setting the current number of arguments
-  			sequence_data=$SampleName"_not_rRNA.fq.gz" # ---added .gz
-  			echo "Filtering not activated, moving to next task";;
+# Validate method
+case $METHOD in
+    "ALL"|"--read_based"|"--ass_based"|"--clust_based")
+        echo "Parameters:"
+        echo "  Threads: $JTrim"
+        echo "  Method: $METHOD"
+        echo "  Filter: ${filter:-not activated}"
+        echo ""
+        ;;
+    *)
+        echo "ERROR: Invalid method: $METHOD"
+        echo "Valid methods: ALL, --read_based, --ass_based, --clust_based"
+        exit 1
+        ;;
 esac
 
-##Start read-based taxonomy
-##Statement of arguments
-if [ $5 == 'ALL' ];
-	then
-		JTrim=$((JTrim/3))
-		printf "Executing ALL (read-based, assembly-based and clustering-based) taxonomy processes \n"
-		echo -e "$(date) Calling ALL (read-based, assembly-based and clustering-based) taxonomy tasks \n" >> $logfile #2>&
+################################################################################
+# Detect Samples in input/ Directory
+################################################################################
+# Determine project directory with priority order:
+# 1. PIMGAVIR_PROJECT_DIR variable (if set at top of script)
+# 2. SLURM_SUBMIT_DIR (when submitted via sbatch)
+# 3. Script location (when run interactively from project)
 
-		##Call read-based taxonomy classification
-		printf "Calling Read-based taxonomy task and using $JTrim threads"
-		echo -e "$(date) Calling Read-based taxonomy task \n" >> $logfile 2>&1
-		./taxonomy_conda.sh $sequence_data $SampleName"_read-based-taxonomy" $JTrim _READ & ##It will run in bg mode
-
-		##Call assembly-based taxonomy classification
-		assembly_func & ##It will run in bg mode
-
-		##Call clustering-based taxonomy classification
-		clustering_func & ##It will run in bg mode
-
-	else
-		i=1
-		while (( $i < $max-3 ))
-		do
-			case $5 in
-		  	("--read_based")
-		    		printf "Executing Read-based taxonomy process \n"
-		    		echo -e "$(date) Calling Read-based taxonomy task\n" >> $logfile 2>&1
-		    		./taxonomy_conda.sh $sequence_data read-based-taxonomy $JTrim _READ
-		    		seqkit fq2fa $sequence_data > readsToblastn.fasta
-		    		./krona-blast_conda.sh readsToblastn.fasta $SampleName"_read-based-KRONA-BLAST" $JTrim $SampleName
-		    		i=$((i + 1 ))
-		    		shift 1;;
-		    	("--ass_based")
-		    		printf "Calling the Assembly-based function \n"
-		    		echo -e "$(date) Calling the Assembly-based function \n" >> $logfile 2>&1
-		    		assembly_func
-		    		i=$((i + 1 ))
-		    		shift 1;;
-		    	("--clust_based")
-		    		printf "Calling the Clustering-based function \n"
-		    		echo -e "$(date) Calling the Clustering-based function \n" >> $logfile 2>&1
-		    		clustering_func
-		    		i=$((i + 1 ))
-		    		shift 1;;
-		    	(*)
-		    		echo "One of the following option must be specified: ALL|[--read_based --ass_based --clust_based] "
-		    		i=$((i + 1 ))
-		    		shift 1;;
-		    	esac
-		done
+if [ -n "$PIMGAVIR_PROJECT_DIR" ]; then
+    # Use configured absolute path (best for scripts copied to ~/scripts/)
+    PROJECT_DIR="$PIMGAVIR_PROJECT_DIR"
+    SCRIPT_DIR="${PROJECT_DIR}/scripts"
+    echo "Using configured project directory: $PROJECT_DIR"
+elif [ -n "$SLURM_SUBMIT_DIR" ]; then
+    # Running as SLURM job - use submission directory
+    PROJECT_DIR="$SLURM_SUBMIT_DIR"
+    SCRIPT_DIR="${PROJECT_DIR}/scripts"
+    echo "Using SLURM submission directory: $PROJECT_DIR"
+else
+    # Running interactively - use script location
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    PROJECT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+    echo "Auto-detected project directory: $PROJECT_DIR"
 fi
 
-# Delete input files and save work
+INPUT_DIR="${PROJECT_DIR}/input"
+SAMPLES_LIST="${PROJECT_DIR}/samples.list"
 
-echo "Data transfer node -> san"
-rm -rf $R1
-rm -rf $R2
-rm *.sh
-rm taxonomy.tab
-rm concatenate_reads.py
-# Note: BBDuk doesn't create persistent working directories like SortMeRNA
+echo ""
+echo "Sample Detection"
+echo "=========================================="
+echo "Project directory: $PROJECT_DIR"
+echo "Scripts directory: $SCRIPT_DIR"
+echo "Input directory: $INPUT_DIR"
 
-cd ..
+# Check if input directory exists
+if [ ! -d "$INPUT_DIR" ]; then
+    echo "ERROR: Input directory does not exist: $INPUT_DIR"
+    echo ""
+    echo "Please create the input/ directory and place your samples there:"
+    echo "  mkdir -p input/"
+    echo "  cp /path/to/samples/*_R*.fastq.gz input/"
+    echo ""
+    exit 1
+fi
 
-scp -r scripts/ $PATH_TO_SAVE
+# Run sample detection script
+if [ ! -f "${SCRIPT_DIR}/detect_samples.sh" ]; then
+    echo "ERROR: detect_samples.sh script not found"
+    exit 1
+fi
 
-# Delete scratch
-echo "Delete Scratch"
-rm -rf ${SCRATCH_DIRECTORY}
+echo "Running sample detection..."
+bash "${SCRIPT_DIR}/detect_samples.sh" "$INPUT_DIR" "$SAMPLES_LIST"
+DETECTION_EXIT_CODE=$?
+
+# Check if sample detection succeeded
+if [ $DETECTION_EXIT_CODE -ne 0 ]; then
+    echo "ERROR: Sample detection failed with exit code $DETECTION_EXIT_CODE"
+    exit 1
+fi
+
+if [ ! -f "$SAMPLES_LIST" ]; then
+    echo "ERROR: samples.list was not created"
+    exit 1
+fi
+
+# Count samples
+NUM_SAMPLES=$(wc -l < "$SAMPLES_LIST")
+
+if [ "$NUM_SAMPLES" -eq 0 ]; then
+    echo "ERROR: No samples found in $INPUT_DIR"
+    exit 1
+fi
+
+echo ""
+echo "Summary: Found $NUM_SAMPLES sample(s) to process"
+echo ""
+
+################################################################################
+# Prepare SLURM Array Job
+################################################################################
+echo "=========================================="
+echo "Preparing SLURM Array Job"
+echo "=========================================="
+
+# Create logs directory if it doesn't exist
+LOGS_DIR="${PROJECT_DIR}/logs"
+mkdir -p "$LOGS_DIR"
+
+echo "Logs directory: $LOGS_DIR"
+echo "Array size: 0-$((NUM_SAMPLES-1))"
+echo ""
+
+################################################################################
+# Build Worker Command Template
+################################################################################
+# Build the command that each array task will execute
+WORKER_SCRIPT="${SCRIPT_DIR}/PIMGAVIR_worker.sh"
+
+if [ ! -f "$WORKER_SCRIPT" ]; then
+    echo "ERROR: Worker script not found: $WORKER_SCRIPT"
+    exit 1
+fi
+
+# Create a wrapper script that reads from samples.list
+WRAPPER_SCRIPT="${PROJECT_DIR}/run_worker_${RANDOM}.sh"
+
+cat > "$WRAPPER_SCRIPT" << EOFWRAPPER
+#!/bin/bash
+
+# Get sample info from samples.list based on SLURM_ARRAY_TASK_ID
+PROJECT_DIR="${PROJECT_DIR}"
+SCRIPT_DIR="${SCRIPT_DIR}"
+SAMPLES_LIST="\${PROJECT_DIR}/samples.list"
+
+# Read the line corresponding to this array task
+SAMPLE_LINE=\$(sed -n "\$((SLURM_ARRAY_TASK_ID + 1))p" "\$SAMPLES_LIST")
+
+if [ -z "\$SAMPLE_LINE" ]; then
+    echo "ERROR: Could not read sample at index \$SLURM_ARRAY_TASK_ID"
+    exit 1
+fi
+
+# Parse tab-separated values
+R1=\$(echo "\$SAMPLE_LINE" | cut -f1)
+R2=\$(echo "\$SAMPLE_LINE" | cut -f2)
+SAMPLE_NAME=\$(echo "\$SAMPLE_LINE" | cut -f3)
+
+# Get parameters from environment variables set by launcher
+THREADS="\${PIMGAVIR_THREADS}"
+METHOD="\${PIMGAVIR_METHOD}"
+FILTER="\${PIMGAVIR_FILTER}"
+
+echo "=========================================="
+echo "Array Task: \$SLURM_ARRAY_TASK_ID"
+echo "Sample: \$SAMPLE_NAME"
+echo "=========================================="
+
+# Call worker script
+exec bash "\${SCRIPT_DIR}/PIMGAVIR_worker.sh" "\$R1" "\$R2" "\$SAMPLE_NAME" "\$THREADS" "\$METHOD" \$FILTER
+EOFWRAPPER
+
+chmod +x "$WRAPPER_SCRIPT"
+
+################################################################################
+# Submit SLURM Array Job
+################################################################################
+echo "Submitting SLURM Array Job"
+echo "=========================================="
+
+# Export parameters as environment variables for the wrapper
+export PIMGAVIR_THREADS="$JTrim"
+export PIMGAVIR_METHOD="$METHOD"
+export PIMGAVIR_FILTER="${filter}"
+
+# Submit array job
+SBATCH_CMD="sbatch \
+    --array=0-$((NUM_SAMPLES-1)) \
+    --job-name=PIMGAVir \
+    --output=${LOGS_DIR}/pimgavir_%A_%a.out \
+    --error=${LOGS_DIR}/pimgavir_%A_%a.err \
+    --time=3-23:59:59 \
+    --partition=normal \
+    --nodes=1 \
+    --cpus-per-task=${JTrim} \
+    --mem=64GB \
+    --mail-user=loic.talignani@ird.fr \
+    --mail-type=ALL \
+    --export=ALL,PIMGAVIR_THREADS=${JTrim},PIMGAVIR_METHOD=${METHOD},PIMGAVIR_FILTER=${filter} \
+    $WRAPPER_SCRIPT"
+
+echo "SLURM command:"
+echo "$SBATCH_CMD"
+echo ""
+
+# Execute sbatch
+JOB_ID=$(eval $SBATCH_CMD | grep -oP '\d+')
+
+if [ -z "$JOB_ID" ]; then
+    echo "ERROR: Failed to submit SLURM array job"
+    rm -f "$WRAPPER_SCRIPT"
+    exit 1
+fi
+
+echo "=========================================="
+echo "Job Submission Successful"
+echo "=========================================="
+echo "Job ID: $JOB_ID"
+echo "Number of samples: $NUM_SAMPLES"
+echo "Array indices: 0-$((NUM_SAMPLES-1))"
+echo ""
+echo "Monitoring Commands:"
+echo "  squeue -j $JOB_ID                    # View job status"
+echo "  squeue -u $USER                      # View all your jobs"
+echo "  sacct -j $JOB_ID --format=JobID,JobName,State,ExitCode,Elapsed"
+echo "  tail -f ${LOGS_DIR}/pimgavir_${JOB_ID}_*.out"
+echo ""
+echo "Results will be saved to:"
+echo "  /projects/large/PIMGAVIR/results/${JOB_ID}_*"
+echo ""
+echo "=========================================="
+
+# Keep wrapper script for debugging, but can be removed after job completes
+echo "Temporary wrapper script: $WRAPPER_SCRIPT"
+echo "(This will be automatically cleaned up after the job completes)"
+echo ""
+
+exit 0

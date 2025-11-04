@@ -9,10 +9,17 @@ JTrim=$4	      #Number of cores to use
 METHOD=$5
 
 NumOfArgs=5	#At least 5 parameters are needed
+
+# Create report directory if it doesn't exist
+mkdir -p report
+
 Trimgalore="report/trim-galore.log"
 logfile="report/pre-process.log"
-refSLR138="../DBs/SILVA/SILVA.138.1.LSU.fasta" # slr138.fasta
-refSSR138="../DBs/SILVA/SILVA.138.1.SSU.fasta" #ssr138.fasta
+
+# Use databases from NAS if PIMGAVIR_DBS_DIR is set, otherwise use relative path (backward compatible)
+PIMGAVIR_DBS_DIR="${PIMGAVIR_DBS_DIR:-../DBs}"
+refSLR138="${PIMGAVIR_DBS_DIR}/SILVA/SILVA.138.1.LSU.fasta" # slr138.fasta
+refSSR138="${PIMGAVIR_DBS_DIR}/SILVA/SILVA.138.1.SSU.fasta" #ssr138.fasta
 
 echo "Starting the pre-process task with the following arguments: $R1 $R2 $SampleName $JTrim"
 
@@ -20,16 +27,41 @@ echo "Starting the pre-process task with the following arguments: $R1 $R2 $Sampl
 echo "Using conda environment tools (no module loading required)"
 
 echo "1. Executing Trimgalore"
+
+# Debug: Check if input files exist
+echo "DEBUG: Current directory: $(pwd)"
+echo "DEBUG: Checking for input files:"
+ls -lh "$R1" "$R2" 2>&1 || echo "ERROR: Input files not found!"
+
 ##Remove adapters using TrimGalore
 echo -e "$(date) Executing pimgavir with the following arguments: R1 is $R1, R2 is $R2" > $logfile 2>&1
 echo -e "$(date) Removing adapters using Trim Galore using 8 cores\n" >> $logfile 2>&1
 
 #Command to execute
-trim_galore -j 8 --length 80 --paired $R1 $R2 -q 30 --fastqc > $Trimgalore 2>&1
+echo "Running: trim_galore -j 8 --length 80 --paired $R1 $R2 -q 30 --fastqc"
+trim_galore -j 8 --length 80 --paired $R1 $R2 -q 30 --fastqc 2>&1 | tee $Trimgalore
+
+# Check if TrimGalore succeeded
+if [ $? -ne 0 ]; then
+    echo "ERROR: TrimGalore failed!"
+    cat $Trimgalore
+    exit 1
+fi
+
 echo -e "$(date) Trim Galore session finished \n" >> $logfile 2>&1
 
+# Debug: Check if output files were created
+echo "DEBUG: Checking for TrimGalore output files:"
+ls -lh *val*.fq.gz 2>&1 || echo "WARNING: No *val*.fq.gz files found!"
+
 # Consolidate SCP transfers into single command to reduce SSH handshake overhead
-DEST="/projects/large/PIMGAVIR/${SLURM_JOB_ID}_${SampleName}_${METHOD#--}"
+# Use SLURM_ARRAY_JOB_ID for array jobs, fall back to SLURM_JOB_ID for single jobs
+JOB_ID="${SLURM_ARRAY_JOB_ID:-${SLURM_JOB_ID}}"
+DEST="/projects/large/PIMGAVIR/results/${JOB_ID}_${SampleName}_${METHOD#--}"
+
+# Ensure destination directory exists before copying
+mkdir -p "$DEST" 2>/dev/null || true
+
 scp -r *val_*fq.gz *_trimming_report.txt *.html *.zip "$DEST"
 
 ##Rename files

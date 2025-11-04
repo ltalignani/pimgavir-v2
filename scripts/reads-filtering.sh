@@ -9,6 +9,9 @@ OutDiamondDB=$4		 #fastq file output from blasting diamond
 PathToRefSeq=$5		 #Path to RefSeq Db
 UnWanted=$6		     #Name of text file containg UNWANTED kingdonm
 
+# Create report directory if it doesn't exist
+mkdir -p report
+
 logfile="report/reads-filtering.log"
 
 
