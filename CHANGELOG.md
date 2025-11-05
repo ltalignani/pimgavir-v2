@@ -1,5 +1,115 @@
 # CHANGELOG
 
+## [2.2.2] - 2025-11-05 - Smart Launcher System & Documentation Cleanup
+
+### Added
+
+**🚀 New Smart Launcher Scripts**
+- **`run_pimgavir.sh`**: Single-sample launcher with configurable resources
+  - Command-line resource control (--mem, --threads, --time, --partition)
+  - No script editing required
+  - Email notifications (--email, --mail-type)
+  - Infiniband support (--infiniband for IRD cluster)
+  - Dry-run mode for testing (DRY_RUN=true)
+  - Comprehensive help message (-h, --help)
+
+- **`run_pimgavir_batch.sh`**: Batch launcher for multiple samples
+  - Auto-detects paired FASTQ files in directory
+  - All single-sample options available
+  - Concurrent job control (--array-limit N)
+  - Flexible resource allocation per batch
+
+**📋 Usage Examples:**
+```bash
+# Single sample with custom resources
+bash scripts/run_pimgavir.sh R1.fq.gz R2.fq.gz sample1 ALL \
+    --mem 512GB --threads 64 --time 6-00:00:00
+
+# Batch processing with limits
+bash scripts/run_pimgavir_batch.sh /data/samples/ ALL \
+    --mem 256GB --array-limit 4 --email user@ird.fr
+```
+
+### Changed
+
+**📚 Documentation Overhaul**
+- **README.md**: Updated with new launcher examples
+  - Replaced old batch mode instructions
+  - Added resource configuration examples
+  - Updated troubleshooting section
+  - Reorganized documentation links
+
+- **RESOURCE_CONFIGURATION_GUIDE.md**: Complete rewrite (v2.2.2)
+  - Replaced SBATCH editing instructions with launcher usage
+  - Comprehensive resource recommendations by analysis type
+  - Command-line option reference tables
+  - Practical examples for different scenarios
+  - Migration guide from old system
+  - Troubleshooting section for resource issues
+  - ~800 lines of updated content
+
+- **DOCUMENTATION_CLEANUP_2025-11-05.md**: New cleanup guide
+  - Lists 20 obsolete documentation files
+  - Categorizes files by reason (obsolete, redundant, historical)
+  - Provides deletion commands
+  - Impact assessment
+
+### Deprecated
+
+**🗑️ Old Batch System**
+- Old method: `sbatch PIMGAVIR_conda.sh 40 ALL` (auto-detect input/)
+- New method: `bash run_pimgavir_batch.sh /path/to/samples/ ALL`
+- Old commands still work but not recommended
+
+**📄 Obsolete Documentation** (marked for deletion):
+- `QUICK_START_BATCH.md` - Replaced by README.md + RESOURCE_CONFIGURATION_GUIDE.md
+- `docs/BATCH_PROCESSING_GUIDE.md` - Old batch system documentation
+- `docs/BATCH_PROCESSING_PLAN.md` - Implementation plan (historical)
+- `docs/BATCH_PROCESSING_IMPLEMENTATION.md` - Implementation details (historical)
+- `docs/SETUP_GUIDE.md` - Replaced by docs/CONDA_ENVIRONMENT_SETUP_BATCH.md
+
+**📝 Development Files** (optional deletion):
+- 10 session summary files in `updates/`
+- 3 bugfix report files in `fixes/`
+- 2 viral genome planning docs
+
+### Benefits
+
+**For Users:**
+- ✅ **Flexible resource control** - No script editing, all via command line
+- ✅ **Per-sample customization** - Different resources per sample
+- ✅ **Better reproducibility** - Commands in shell history
+- ✅ **Clearer documentation** - Single source of truth
+- ✅ **Less confusion** - Obsolete guides removed
+
+**For Maintainers:**
+- ✅ **Easier maintenance** - Fewer duplicate docs
+- ✅ **Better organization** - Clear documentation structure
+- ✅ **Reduced technical debt** - Obsolete content identified
+
+### Migration Notes
+
+**From v2.1 to v2.2.2:**
+
+Old way (editing SBATCH directives):
+```bash
+# Edit PIMGAVIR_worker.sh manually
+vim scripts/PIMGAVIR_worker.sh
+# Change #SBATCH --mem=256GB
+sbatch scripts/PIMGAVIR_conda.sh 40 ALL
+```
+
+New way (command-line control):
+```bash
+# No editing needed!
+bash scripts/run_pimgavir.sh R1.fq.gz R2.fq.gz sample1 ALL \
+    --mem 256GB --threads 40
+```
+
+**Backward Compatibility:** Old commands still work but use new launchers for better control.
+
+---
+
 ## [2.2.1] - 2025-11-04 - Critical Bug Fixes
 
 ### Fixed

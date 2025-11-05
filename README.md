@@ -88,29 +88,33 @@ bash setup_viral_databases.sh  # 4-8 hours
 
 ### 4. Run Pipeline
 
-**Batch mode** (auto-detects samples in `input/`):
-
-```bash
-# Place samples in input/ directory
-mkdir -p input/
-cp /path/to/*_R*.fastq.gz input/
-
-# Process all samples
-sbatch scripts/PIMGAVIR_conda.sh 40 ALL             # All 3 methods + viral analysis
-sbatch scripts/PIMGAVIR_conda.sh 40 --ass_based     # Assembly-based (best for >5 GB)
-sbatch scripts/PIMGAVIR_conda.sh 40 --read_based    # Read-based only
-```
-
-**IRD cluster** (Infiniband):
-
-```bash
-sbatch scripts/PIMGAVIR_conda_ib.sh 40 ALL          # 128TB shared scratch, high-speed I/O
-```
-
 **Single sample**:
 
 ```bash
-sbatch scripts/PIMGAVIR_conda.sh R1.fq.gz R2.fq.gz Sample1 40 ALL
+# Standard execution
+bash scripts/run_pimgavir.sh R1.fq.gz R2.fq.gz Sample1 ALL
+
+# With custom resources (256GB RAM, 64 threads)
+bash scripts/run_pimgavir.sh R1.fq.gz R2.fq.gz Sample1 ALL \
+    --mem 256GB --threads 64
+
+# IRD cluster with Infiniband
+bash scripts/run_pimgavir.sh R1.fq.gz R2.fq.gz Sample1 ALL --infiniband
+```
+
+**Batch mode** (multiple samples):
+
+```bash
+# Auto-detect all samples in directory
+bash scripts/run_pimgavir_batch.sh /path/to/samples/ ALL
+
+# With custom resources and concurrency limit
+bash scripts/run_pimgavir_batch.sh /path/to/samples/ ALL \
+    --mem 256GB --threads 64 --array-limit 4
+
+# Assembly-based (best for large datasets >5 GB)
+bash scripts/run_pimgavir_batch.sh /path/to/samples/ --ass_based \
+    --mem 512GB --time 5-00:00:00
 ```
 
 ## What's New in v2.2
@@ -184,15 +188,10 @@ See [`VIRAL_GENOME_QUICKSTART.md`](VIRAL_GENOME_QUICKSTART.md) for details.
 ### Process Multiple Samples (Batch Mode)
 
 ```bash
-# Structure:
-# input/
-#   sample1_R1.fastq.gz
-#   sample1_R2.fastq.gz
-#   sample2_R1.fastq.gz
-#   sample2_R2.fastq.gz
+# Auto-detect samples in directory
+bash scripts/run_pimgavir_batch.sh /data/samples/ ALL
 
-sbatch scripts/PIMGAVIR_conda.sh 40 ALL
-# Auto-detects: sample1, sample2
+# Samples detected: sample1, sample2, sample3...
 # Launches SLURM array job
 # Results: results/<JOBID>_<sample>_ALL/
 ```
@@ -201,7 +200,8 @@ sbatch scripts/PIMGAVIR_conda.sh 40 ALL
 
 ```bash
 # Recommended for large samples - BLAST runs on contigs (much faster)
-sbatch scripts/PIMGAVIR_conda.sh 40 --ass_based
+bash scripts/run_pimgavir_batch.sh /data/samples/ --ass_based \
+    --mem 512GB --threads 64
 
 # Includes automatic viral genome analysis (7 phases)
 # Results: viral-genomes-megahit/ and viral-genomes-spades/
@@ -211,14 +211,15 @@ sbatch scripts/PIMGAVIR_conda.sh 40 --ass_based
 
 ```bash
 # Filter out host/unwanted sequences with Diamond BLAST
-sbatch scripts/PIMGAVIR_conda.sh 40 ALL --filter
+bash scripts/run_pimgavir_batch.sh /data/samples/ ALL --filter \
+    --mem 384GB  # Add extra memory for filtering
 ```
 
 ### IRD Cluster (Infiniband)
 
 ```bash
 # Uses 128TB shared scratch, high-speed I/O
-sbatch scripts/PIMGAVIR_conda_ib.sh 40 ALL
+bash scripts/run_pimgavir.sh R1.fq.gz R2.fq.gz sample ALL --infiniband
 ```
 
 ## Output Structure
@@ -293,7 +294,19 @@ sbatch setup_conda_env_fast.sh
 ```bash
 # For large samples (>5 GB), use assembly-based mode instead
 # BLAST runs on contigs (much faster than reads)
-sbatch scripts/PIMGAVIR_conda.sh 40 --ass_based
+bash scripts/run_pimgavir.sh R1.fq.gz R2.fq.gz sample --ass_based
+```
+
+### Resource Configuration Issues
+
+```bash
+# Check resource recommendations
+cat RESOURCE_CONFIGURATION_GUIDE.md
+
+# Common fixes:
+# - Increase memory: --mem 512GB
+# - Increase time: --time 7-00:00:00
+# - Use high-memory partition: --partition highmem
 ```
 
 ## Requirements
@@ -319,11 +332,17 @@ GitHub: https://github.com/ltalignani/PIMGAVIR-v2
 
 ## Documentation
 
+### User Guides
+- **[RESOURCE_CONFIGURATION_GUIDE.md](RESOURCE_CONFIGURATION_GUIDE.md)**: Resource allocation guide for run_pimgavir scripts
 - **[CONDA_ENVIRONMENT_SETUP_BATCH.md](docs/CONDA_ENVIRONMENT_SETUP_BATCH.md)**: Detailed installation guide
 - **[VIRAL_GENOME_QUICKSTART.md](VIRAL_GENOME_QUICKSTART.md)**: Viral genome analysis guide
 - **[OUTPUT_FILES.md](OUTPUT_FILES.md)**: Complete output file reference
-- **[BLAST_SKIP_SOLUTION.md](docs/BLAST_SKIP_SOLUTION.md)**: BLAST optimization details
+
+### Technical Documentation
+- **[CLAUDE.md](CLAUDE.md)**: Complete technical documentation
 - **[CHANGELOG.md](CHANGELOG.md)**: Version history and updates
+- **[BLAST_SKIP_SOLUTION.md](docs/BLAST_SKIP_SOLUTION.md)**: BLAST optimization details
+- **[INFINIBAND_SETUP.md](docs/INFINIBAND_SETUP.md)**: IRD cluster Infiniband configuration
 
 ## Support
 
