@@ -146,8 +146,24 @@ while IFS= read -r r1_file; do
         continue
     fi
 
-    # Add to samples list
-    echo -e "$r1_file\t$r2_file\t$sample_name" >> "$OUTPUT_FILE"
+    # Convert to absolute paths for portability
+    # Use multiple methods to ensure we get absolute paths
+    if command -v realpath &> /dev/null; then
+        # Method 1: Use realpath if available (most reliable)
+        r1_abs=$(realpath "$r1_file")
+        r2_abs=$(realpath "$r2_file")
+    elif command -v readlink &> /dev/null; then
+        # Method 2: Use readlink -f if available
+        r1_abs=$(readlink -f "$r1_file")
+        r2_abs=$(readlink -f "$r2_file")
+    else
+        # Method 3: Fallback to cd/pwd method
+        r1_abs=$(cd "$(dirname "$r1_file")" && pwd)/$(basename "$r1_file")
+        r2_abs=$(cd "$(dirname "$r2_file")" && pwd)/$(basename "$r2_file")
+    fi
+
+    # Add to samples list with absolute paths
+    echo -e "$r1_abs\t$r2_abs\t$sample_name" >> "$OUTPUT_FILE"
 
     # Mark as processed
     processed_r1_files[$r1_file]=1

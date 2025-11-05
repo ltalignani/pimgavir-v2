@@ -1,0 +1,1 @@
+input/sample9_1.fastq.gz	input/sample9_2.fastq.gz	sample9
