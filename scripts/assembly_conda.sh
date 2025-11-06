@@ -131,12 +131,15 @@ samtools index $megahit_contigs_sorted_bam -@ $JTrim || exit 66
 echo -e "$(date) Indexing BAM file [samtools index] from SPAdes assembly" >> $logfile 2>&1
 samtools index $spades_contigs_sorted_bam -@ $JTrim || exit 66
 
-# Improve contigs with Pilon
+# Improve contigs with Pilo-$:
 # Note: Pilon adds .fasta extension automatically to output
 echo -e "$(date) Improve contigs file [pilon] from MEGAHIT contigs" >> $logfile 2>&1
+# Allocate more memory to Java for Pilon (50% of available memory, min 8GB, max 64GB)
+export _JAVA_OPTIONS="-Xmx128g"
 pilon --genome $megahit_out/final.contigs.fa --frags $megahit_contigs_sorted_bam --output $megahit_contigs_improved_base --threads $JTrim || exit 78
 echo -e "$(date) Improve contigs file [pilon] from SPAdes contigs" >> $logfile 2>&1
 pilon --genome $spades_out/contigs.fasta --frags $spades_contigs_sorted_bam --output $spades_contigs_improved_base --threads $JTrim || exit 79
+unset _JAVA_OPTIONS
 
 ################################################################################
 # 4. Assembly Quality Assessment with QUAST
